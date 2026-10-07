@@ -1,0 +1,2 @@
+import OpenAI from "openai"; import {CouncilProvider} from "./types"; import {councilInstruction} from "../prompts";
+export const openAIProvider:CouncilProvider={id:"openai",isConfigured:()=>Boolean(process.env.OPENAI_API_KEY),async ask({prompt,mode,model,role}){const c=new OpenAI({apiKey:process.env.OPENAI_API_KEY});const r=await c.responses.create({model,instructions:councilInstruction(mode)+(role?("\nYour Council role: "+role):""),input:prompt});return r.output_text;}};
