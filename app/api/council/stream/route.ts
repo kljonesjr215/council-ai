@@ -16,9 +16,10 @@ async function upstream(b:z.infer<typeof schema>){
  if(m.provider==="google"){
   const key=process.env.GOOGLE_API_KEY;if(!key)return errorResponse("google is not configured",503);
   const primary=m.model&&m.model!=="gemini"?m.model:(process.env.GOOGLE_MODEL||"gemini-3.8-flash");
-  const call=(model:string)=>fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":streamGenerateContent?alt=sse",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({system_instruction:{parts:[{text:system(b.mode,m.role)}]},contents:[{role:"user",parts:[{text:b.prompt}]}]})});
-  let r=await call(primary);
-  if(!r.ok){const msg=await r.clone().text();if(/high demand|try again later|overloaded/i.test(msg)&&primary!=="gemini-3.5-flash-lite")r=await call("gemini-3.5-flash-lite")}
+  const call=(model:string)=>fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":streamGenerateContent?alt=sse",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({system_instruction:{parts:[{text:system(b.mode,m.role)}]},contents:[{role:"user",parts:[{text:b.prompt}]}]}),signal:AbortSignal.timeout(20000)});
+  let r:Response;
+  try{r=await call(primary)}catch{if(primary==="gemini-3.5-flash-lite")return errorResponse("Gemini timed out before responding",504);r=await call("gemini-3.5-flash-lite")}
+  if(!r.ok){const msg=await r.clone().text();if(/high demand|try again later|overloaded|timeout/i.test(msg)&&primary!=="gemini-3.5-flash-lite")r=await call("gemini-3.5-flash-lite")}
   return r;
  }
  if(m.provider==="openai"){
