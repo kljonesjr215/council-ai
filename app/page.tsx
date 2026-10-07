@@ -43,8 +43,22 @@ export default function Home(){
   try{
    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
    if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
-   const reader=r.body.getReader();const decoder=new TextDecoder();let text="";
-   while(true){const {done,value}=await reader.read();if(done)break;const chunk=decoder.decode(value,{stream:true});for(const ch of chunk){text+=ch;setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text,ok:true}]);await new Promise(resolve=>setTimeout(resolve,12))}}
+   const reader=r.body.getReader();const decoder=new TextDecoder();let text="";let visible="";
+   const typeChunk=async(chunk:string)=>{
+    for(const ch of chunk){
+     text+=ch;
+     visible+=ch;
+     setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text:visible,ok:true}]);
+     const delay=/[.!?]/.test(ch)?34:/[,;:]/.test(ch)?22:ch===" "?7:12;
+     await new Promise(resolve=>setTimeout(resolve,delay));
+    }
+   };
+   while(true){
+    const {done,value}=await reader.read();if(done)break;
+    const chunk=decoder.decode(value,{stream:true});
+    if(chunk)await typeChunk(chunk);
+   }
+   const tail=decoder.decode();if(tail)await typeChunk(tail);
    return {member,text,ok:true} as Response;
   }catch(e){const failed:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed}
  }
