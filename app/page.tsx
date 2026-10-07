@@ -26,9 +26,23 @@ export default function Home(){
   try{const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode:"conclusion",members:[chair],conversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");const next=d.responses?.[0];if(next)setConclusion(next);if(d.conversationId)setConversationId(d.conversationId);setStatus("Council conclusion ready — you make the decision.");}catch(e){setStatus(e instanceof Error?e.message:"Conclusion failed");}finally{setLoading(false)}
  }
  async function run(mode:Mode,targetMemberId?:string){
-  if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Preparing final round...":"Council is deliberating...");
+  if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Preparing final round...":"Council members are responding...");
   const prior=responses.map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
-  try{if(attachments.length){setStatus("Securing your evidence...");await uploadSelected()}const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,members:active,conversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");setResponses(d.responses||[]);if(d.conversationId)setConversationId(d.conversationId);if(attachments.length)setAttachments([]);if(mode==="ask"){setFinalComplete(false);setConclusion(undefined)}if(mode==="final")setFinalComplete(true);setStatus(mode==="final"?"Final round complete — request one Council conclusion when ready.":"Challenge a member, add evidence, or continue deliberating.");}catch(e){setStatus(e instanceof Error?e.message:"Something went wrong");}finally{setLoading(false)}
+  try{
+   if(attachments.length){setStatus("Securing your evidence...");await uploadSelected()}
+   const selected=mode==="challenge-member"&&targetMemberId?active.filter(m=>m.id===targetMemberId):active;
+   if(mode==="ask"){setFinalComplete(false);setConclusion(undefined);setResponses([])}
+   let cid=conversationId;let completed=0;
+   const jobs=selected.map(async member=>{
+    try{
+     const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,members:[member],conversationId:cid})});
+     const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");const next=d.responses?.[0] as Response|undefined;if(d.conversationId&&!cid){cid=d.conversationId;setConversationId(d.conversationId)}
+     if(next)setResponses(old=>{const rest=old.filter(x=>x.member.id!==member.id);return [...rest,next]});
+    }catch(e){const next:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),next])}
+    finally{completed++;setStatus(completed<selected.length?completed+" of "+selected.length+" Council members responded...":"Council round complete.")}
+   });
+   await Promise.all(jobs);if(attachments.length)setAttachments([]);if(mode==="final"){setFinalComplete(true);setStatus("Final round complete — request one Council conclusion when ready.")}else setStatus("Challenge a member, add evidence, or continue deliberating.");
+  }catch(e){setStatus(e instanceof Error?e.message:"Something went wrong");}finally{setLoading(false)}
  }
  return <main>
   <header><div className="brand"><span className="mark">C</span><div><h1>COUNCIL</h1><p>AI deliberation by AHG</p></div></div><a className="memory" href="/login">Account</a></header>
