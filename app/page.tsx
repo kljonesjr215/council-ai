@@ -4,15 +4,16 @@ type Mode="ask"|"challenge-member"|"challenge-council"|"final";
 type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
 const initial:Member[]=[
- {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.2",enabled:true,role:"Strategist"},
- {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-4-5",enabled:true,role:"Skeptic"},
+ {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.6-luna",enabled:true,role:"Strategist"},
+ {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Skeptic"},
  {id:"gemini",provider:"google",label:"Gemini",model:"gemini",enabled:false,role:"Researcher"}
 ];
 export default function Home(){
  const [prompt,setPrompt]=useState("");const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
  const active=useMemo(()=>members.filter(m=>m.enabled),[members]);
  function toggle(id:string){setMembers(x=>x.map(m=>m.id===id?{...m,enabled:!m.enabled}:m))}
- async function uploadSelected(){if(!attachments.length)return;const form=new FormData();attachments.forEach(f=>form.append("files",f));const r=await fetch("/api/assets",{method:"POST",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Upload failed");return d.assets}\n async function run(mode:Mode,targetMemberId?:string){
+ async function uploadSelected(){if(!attachments.length)return;const form=new FormData();attachments.forEach(f=>form.append("files",f));const r=await fetch("/api/assets",{method:"POST",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Upload failed");return d.assets}
+ async function run(mode:Mode,targetMemberId?:string){
   if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Preparing final round...":"Council is deliberating...");
   const prior=responses.map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
   try{if(attachments.length){setStatus("Securing your evidence...");await uploadSelected()}const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,members:active,conversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");setResponses(d.responses||[]);if(d.conversationId)setConversationId(d.conversationId);if(attachments.length)setAttachments([]);setStatus(mode==="final"?"Final round complete — you make the decision.":"Challenge a member, add evidence, or continue deliberating.");}catch(e){setStatus(e instanceof Error?e.message:"Something went wrong");}finally{setLoading(false)}
