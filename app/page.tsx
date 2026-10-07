@@ -40,37 +40,31 @@ export default function Home(){
  }
  async function streamMember(member:Member,context:string,mode:Mode,targetMemberId?:string){
   const pending:Response={member,text:"",ok:true};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),pending]);
-  const attempt=async(retry=false)=>{
-   const controller=new AbortController();let firstToken=false;
-   const firstTokenTimer=window.setTimeout(()=>{if(!firstToken)controller.abort()},member.provider==="google"?18000:30000);
-   try{
-    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member}),signal:controller.signal});
-    if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
-    const reader=r.body.getReader();const decoder=new TextDecoder();
-    let received="";let visible="";let networkDone=false;let typingDoneResolve:()=>void=()=>{};
-    const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
-    const render=()=>{
-     if(visible.length<received.length){
-      const remaining=received.length-visible.length;const step=remaining>240?5:remaining>120?3:remaining>50?2:1;
-      visible=received.slice(0,Math.min(received.length,visible.length+step));
-      setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text:visible,ok:true}]);
-     }
-     if(networkDone&&visible.length>=received.length){typingDoneResolve();return}
-     window.setTimeout(render,18);
-    };
-    render();
-    while(true){const {done,value}=await reader.read();if(done)break;if(value?.length){firstToken=true;window.clearTimeout(firstTokenTimer);received+=decoder.decode(value,{stream:true})}}
-    received+=decoder.decode();networkDone=true;if(!received.trim())throw new Error(member.label+" returned no text");
-    await typingDone;return {member,text:received,ok:true} as Response;
-   }finally{window.clearTimeout(firstTokenTimer)}
-  };
-  try{return await attempt(false)}
-  catch(e){
-   if(member.provider==="google"){
-    setStatus("Gemini stalled — retrying automatically...");
-    try{return await attempt(true)}catch{}
-   }
-   const failed:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
+  let networkDone=false;
+  try{
+   const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
+   if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
+   const reader=r.body.getReader();const decoder=new TextDecoder();
+   let received="";let visible="";let typingDoneResolve:()=>void=()=>{};
+   const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
+   const render=()=>{
+    if(visible.length<received.length){
+     const remaining=received.length-visible.length;const step=remaining>240?5:remaining>120?3:remaining>50?2:1;
+     visible=received.slice(0,Math.min(received.length,visible.length+step));
+     setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text:visible,ok:true}]);
+    }
+    if(networkDone&&visible.length>=received.length){typingDoneResolve();return}
+    window.setTimeout(render,18);
+   };
+   render();
+   while(true){const {done,value}=await reader.read();if(done)break;received+=decoder.decode(value,{stream:true})}
+   received+=decoder.decode();networkDone=true;if(!received.trim())throw new Error(member.label+" did not return a response");
+   await typingDone;return {member,text:received,ok:true} as Response;
+  }catch(e){
+   networkDone=true;
+   const raw=e instanceof Error?e.message:"Unavailable";
+   const message=/abort|stalled|timed out|no stream text|did not return/i.test(raw)?member.label+" is temporarily unavailable. Try again.":raw;
+   const failed:Response={member,text:message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
   }
  }
  async function run(mode:Mode,targetMemberId?:string){
