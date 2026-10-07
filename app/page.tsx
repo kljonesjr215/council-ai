@@ -3,6 +3,7 @@ import {useMemo,useRef,useState} from "react";
 type Mode="ask"|"challenge-member"|"challenge-council"|"final";
 type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
+function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("high demand")||t.includes("try again later")||t.includes("overloaded")||t.includes("503"))return r.member.label+" is temporarily busy. Retry this member in a moment.";if(t.includes("429")||t.includes("quota")||t.includes("credits"))return r.member.label+" is temporarily unavailable because its provider limit was reached.";return r.text}
 const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.6-luna",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
@@ -14,6 +15,11 @@ export default function Home(){
  function toggle(id:string){setMembers(x=>x.map(m=>m.id===id?{...m,enabled:!m.enabled}:m))}
  function setRole(id:string,role:string){setMembers(x=>x.map(m=>m.id===id?{...m,role}:m))}
  async function uploadSelected(){if(!attachments.length)return;const form=new FormData();attachments.forEach(f=>form.append("files",f));const r=await fetch("/api/assets",{method:"POST",body:form});const d=await r.json();if(!r.ok)throw new Error(d.error||"Upload failed");return d.assets}
+ async function retryMember(member:Member){
+  if(!prompt.trim())return;setLoading(true);setStatus("Retrying "+member.label+"...");
+  const prior=responses.filter(r=>r.member.id!==member.id&&r.ok).map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
+  try{const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode:"ask",members:[member],conversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");const next=d.responses?.[0];if(next)setResponses(old=>old.map(x=>x.member.id===member.id?next:x));if(d.conversationId)setConversationId(d.conversationId);setStatus(next?.ok?member.label+" is back in the Council.":member.label+" is still temporarily unavailable.");}catch(e){setStatus(e instanceof Error?e.message:"Retry failed");}finally{setLoading(false)}
+ }
  async function run(mode:Mode,targetMemberId?:string){
   if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Preparing final round...":"Council is deliberating...");
   const prior=responses.map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
