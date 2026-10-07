@@ -31,7 +31,7 @@ export default function Home(){
    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
    if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
    const reader=r.body.getReader();const decoder=new TextDecoder();let text="";
-   while(true){const {done,value}=await reader.read();if(done)break;text+=decoder.decode(value,{stream:true});setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text,ok:true}])}
+   while(true){const {done,value}=await reader.read();if(done)break;const chunk=decoder.decode(value,{stream:true});for(const ch of chunk){text+=ch;setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text,ok:true}]);await new Promise(resolve=>setTimeout(resolve,12))}}
    return {member,text,ok:true} as Response;
   }catch(e){const failed:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed}
  }
