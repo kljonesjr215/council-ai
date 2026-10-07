@@ -43,22 +43,26 @@ export async function POST(req:Request){
  try{
   const b=schema.parse(await req.json());const r=await upstream(b);
   if(!r.ok||!r.body){const msg=await r.text();return errorResponse(msg||b.member.label+" is unavailable",r.status||502)}
-  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";
+  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";let emitted=false;let lastData=Date.now();
   const body=new ReadableStream({
    async start(controller){
     try{
      while(true){
-      const {done,value}=await reader.read();
+      const read=reader.read();
+      const timeout=new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error("Provider stream stalled")),25000));
+      const {done,value}=await Promise.race([read,timeout]);
       if(done)break;
+      lastData=Date.now();
       buffer+=decoder.decode(value,{stream:true});
       const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";
       for(const line of lines){
        if(!line.startsWith("data:"))continue;
        const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
-       const chunk=extract(b.member.provider,data);if(chunk)controller.enqueue(encoder.encode(chunk));
+       const chunk=extract(b.member.provider,data);if(chunk){emitted=true;controller.enqueue(encoder.encode(chunk));}
       }
      }
-     if(buffer.startsWith("data:")){const data=buffer.slice(5).trim();if(data&&data!=="[DONE]"){const chunk=extract(b.member.provider,data);if(chunk)controller.enqueue(encoder.encode(chunk))}}
+     if(buffer.startsWith("data:")){const data=buffer.slice(5).trim();if(data&&data!=="[DONE]"){const chunk=extract(b.member.provider,data);if(chunk){emitted=true;controller.enqueue(encoder.encode(chunk))}}}
+     if(!emitted)throw new Error(b.member.label+" returned no stream text");
      controller.close();
     }catch(e){controller.error(e)}
    },
