@@ -21,7 +21,7 @@ export async function POST(req:Request){
     await s.from("messages").insert({user_id:user.id,conversation_id:conversationId,role:"user",content:b.prompt});
     const {data:turn,error:turnError}=await s.from("council_turns").insert({user_id:user.id,conversation_id:conversationId,mode:b.mode,prompt:b.prompt,status:b.mode==="final"?"final":"deliberating"}).select("id").single();
     if(turnError)throw turnError;
-    if(responses.length){const {error}=await s.from("council_responses").insert(responses.map(r=>({user_id:user.id,turn_id:turn.id,member_key:r.member.id,provider:r.member.provider,model:r.member.model,label:r.member.label,role:r.member.role||null,content:r.text,ok:r.ok})));if(error)throw error}
+    if(responses.length){const {error}=await s.from("council_responses").insert(responses.map(r=>({user_id:user.id,turn_id:turn.id,member_key:r.member.id,provider:r.member.provider,model:r.member.model,label:r.member.label,role:r.member.role||null,content:r.text,ok:r.ok})));if(error)throw error;const usageRows=responses.filter(r=>r.usage).map(r=>({user_id:user.id,conversation_id:conversationId,turn_id:turn.id,provider:r.member.provider,model:r.member.model,mode:b.mode,input_tokens:r.usage?.inputTokens??null,output_tokens:r.usage?.outputTokens??null,total_tokens:r.usage?.totalTokens??null,estimated_cost_usd:null,success:r.ok}));if(usageRows.length){const {error:usageError}=await s.from("ai_usage").insert(usageRows);if(usageError)throw usageError}}
    }
   }catch(e){console.error("Council persistence failed",e)}
   return NextResponse.json({responses,conversationId,status:b.mode==="final"?"final":"deliberating"});
