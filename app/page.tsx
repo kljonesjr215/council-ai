@@ -7,7 +7,7 @@ function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("h
 const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.6-luna",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
- {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:true,role:"Independent"}
+ {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.5-flash-lite",enabled:true,role:"Independent"}
 ];
 export default function Home(){
  const [prompt,setPrompt]=useState("");const [followUp,setFollowUp]=useState("");const [challengeOpen,setChallengeOpen]=useState<string>();const [memberChallenges,setMemberChallenges]=useState<Record<string,string>>({});const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
