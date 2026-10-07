@@ -6,7 +6,7 @@ export const googleProvider:CouncilProvider={
  async ask({prompt,mode,model,role}){
   const apiKey=process.env.GOOGLE_API_KEY;if(!apiKey)throw new Error("google is not configured");
   const selectedModel=model&&model!=="gemini"?model:(process.env.GOOGLE_MODEL||"gemini-3.8-flash");
-  async function call(modelName:string){return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(modelName)+":generateContent",{
+  async function call(modelName:string){return await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(modelName)+":generateContent",{
    method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
    body:JSON.stringify({system_instruction:{parts:[{text:councilInstruction(mode)+(role?("\nYour Council role: "+role):"")}]},contents:[{role:"user",parts:[{text:prompt}]}]})
   })}
