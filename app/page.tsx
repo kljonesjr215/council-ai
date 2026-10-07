@@ -4,6 +4,7 @@ type Mode="ask"|"challenge-member"|"challenge-council"|"final";
 type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
 function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("high demand")||t.includes("try again later")||t.includes("overloaded")||t.includes("503"))return r.member.label+" is temporarily busy. Retry this member in a moment.";if(t.includes("429")||t.includes("quota")||t.includes("credits"))return r.member.label+" is temporarily unavailable because its provider limit was reached.";return r.text}
+function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("high demand")||t.includes("try again later")||t.includes("overloaded")||t.includes("503"))return r.member.label+" is temporarily busy. Retry this member in a moment.";if(t.includes("429")||t.includes("quota")||t.includes("credits"))return r.member.label+" is temporarily unavailable because its provider limit was reached.";return r.text}
 const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.6-luna",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
