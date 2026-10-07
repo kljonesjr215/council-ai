@@ -50,7 +50,7 @@ export async function POST(req:Request){
       const {done,value}=await reader.read();
       if(done)break;
       buffer+=decoder.decode(value,{stream:true});
-      const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()||"";
+      const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";
       for(const line of lines){
        if(!line.startsWith("data:"))continue;
        const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
