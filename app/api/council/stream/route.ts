@@ -44,25 +44,26 @@ export async function POST(req:Request){
   if(!r.ok||!r.body){const msg=await r.text();return errorResponse(msg||b.member.label+" is unavailable",r.status||502)}
   const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";
   const body=new ReadableStream({
-   async pull(controller){
+   async start(controller){
     try{
      while(true){
       const {done,value}=await reader.read();
-      if(done){controller.close();return}
+      if(done)break;
       buffer+=decoder.decode(value,{stream:true});
-      const events=buffer.split(/\\r?\\n\\r?\\n/);buffer=events.pop()||"";
-      for(const event of events){
-       for(const line of event.split("\n")){
-        if(!line.startsWith("data:"))continue;
-        const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
-        const chunk=extract(b.member.provider,data);if(chunk){controller.enqueue(encoder.encode(chunk));return}
-       }
+      const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()||"";
+      for(const line of lines){
+       if(!line.startsWith("data:"))continue;
+       const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
+       const chunk=extract(b.member.provider,data);if(chunk)controller.enqueue(encoder.encode(chunk));
       }
      }
+     if(buffer.startsWith("data:")){const data=buffer.slice(5).trim();if(data&&data!=="[DONE]"){const chunk=extract(b.member.provider,data);if(chunk)controller.enqueue(encoder.encode(chunk))}}
+     controller.close();
     }catch(e){controller.error(e)}
    },
    cancel(){reader.cancel()}
   });
   return new Response(body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-cache, no-transform","X-Accel-Buffering":"no"}});
+
  }catch(e){return errorResponse(e instanceof Error?e.message:"Streaming request failed")}
 }
