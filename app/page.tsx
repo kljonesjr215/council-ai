@@ -25,24 +25,27 @@ export default function Home(){
   setLoading(true);setStatus("Preparing one Council conclusion...");const prior=responses.filter(r=>r.ok).map(r=>r.member.label+" FINAL POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
   try{const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode:"conclusion",members:[chair],conversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");const next=d.responses?.[0];if(next)setConclusion(next);if(d.conversationId)setConversationId(d.conversationId);setStatus("Council conclusion ready — you make the decision.");}catch(e){setStatus(e instanceof Error?e.message:"Conclusion failed");}finally{setLoading(false)}
  }
+ async function streamMember(member:Member,context:string,mode:Mode,targetMemberId?:string){
+  const pending:Response={member,text:"",ok:true};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),pending]);
+  try{
+   const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
+   if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
+   const reader=r.body.getReader();const decoder=new TextDecoder();let text="";
+   while(true){const {done,value}=await reader.read();if(done)break;text+=decoder.decode(value,{stream:true});setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text,ok:true}])}
+   return {member,text,ok:true} as Response;
+  }catch(e){const failed:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed}
+ }
  async function run(mode:Mode,targetMemberId?:string){
-  if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Preparing final round...":"Council members are responding...");
-  const prior=responses.map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=[prompt,prior].filter(Boolean).join("\n\n");
+  if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Council members are forming their final positions...":"Council members are thinking...");
+  const prior=responses.filter(r=>r.text).map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=mode==="ask"?prompt:[prompt,prior].filter(Boolean).join("\n\n");
   try{
    if(attachments.length){setStatus("Securing your evidence...");await uploadSelected()}
-   const selected=mode==="challenge-member"&&targetMemberId?active.filter(m=>m.id===targetMemberId):active;
-   if(mode==="ask"){setFinalComplete(false);setConclusion(undefined);setResponses([])}
-   let cid=conversationId;let completed=0;
-   const jobs=selected.map(async member=>{
-    try{
-     const r=await fetch("/api/council",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,members:[member],conversationId:cid})});
-     const d=await r.json();if(!r.ok)throw new Error(d.error||"Request failed");const next=d.responses?.[0] as Response|undefined;if(d.conversationId&&!cid){cid=d.conversationId;setConversationId(d.conversationId)}
-     if(next)setResponses(old=>{const rest=old.filter(x=>x.member.id!==member.id);return [...rest,next]});
-    }catch(e){const next:Response={member,text:e instanceof Error?e.message:"Unavailable",ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),next])}
-    finally{completed++;setStatus(completed<selected.length?completed+" of "+selected.length+" Council members responded...":"Council round complete.")}
-   });
-   await Promise.all(jobs);if(attachments.length)setAttachments([]);if(mode==="final"){setFinalComplete(true);setStatus("Final round complete — request one Council conclusion when ready.")}else setStatus("Challenge a member, add evidence, or continue deliberating.");
-  }catch(e){setStatus(e instanceof Error?e.message:"Something went wrong");}finally{setLoading(false)}
+   const selected=mode==="challenge-member"&&targetMemberId?active.filter(m=>m.id===targetMemberId):active;if(mode==="ask"){setFinalComplete(false);setConclusion(undefined);setResponses([])}
+   let completed=0;const results=await Promise.all(selected.map(async member=>{const result=await streamMember(member,context,mode,targetMemberId);completed++;setStatus(completed<selected.length?completed+" of "+selected.length+" Council members finished — others are still thinking...":"Council round complete.");return result}));
+   if(attachments.length)setAttachments([]);
+   try{const save=await fetch("/api/council/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,conversationId,responses:results})});const d=await save.json();if(save.ok&&d.conversationId)setConversationId(d.conversationId)}catch{}
+   if(mode==="final"){setFinalComplete(true);setStatus("Final round complete — request one Council conclusion when ready.")}else setStatus("Challenge a member, add evidence, or continue deliberating.");
+  }catch(e){setStatus(e instanceof Error?e.message:"Something went wrong")}finally{setLoading(false)}
  }
  return <main>
   <header><div className="brand"><span className="mark">C</span><div><h1>COUNCIL</h1><p>AI deliberation by AHG</p></div></div><a className="memory" href="/login">Account</a></header>
@@ -50,7 +53,7 @@ export default function Home(){
   <section className="roster"><div className="sectionHead"><div><b>Choose Your Council</b><span>{active.length} active member{active.length===1?"":"s"}</span></div><small>More providers can be added without rebuilding Council.</small></div><div className="memberGrid">{members.map(m=><button key={m.id} className={"memberCard "+(m.enabled?"selected":"")} onClick={()=>toggle(m.id)}><span className="memberCheck">{m.enabled?"✓":"+"}</span><b>{m.label}</b><small>Role</small><select value={m.role||"Independent"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setRole(m.id,e.target.value)}}><option>Independent</option><option>Strategist</option><option>Skeptic</option><option>Researcher</option><option>Financial Analyst</option><option>Creative</option><option>Devil's Advocate</option></select><em>{m.enabled?"Active":"Tap to add"}</em></button>)}</div></section>
   <section className="composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="What do you want the Council to think through?"/><input ref={fileRef} hidden multiple type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt" onChange={e=>setAttachments(Array.from(e.target.files||[]))}/><div className="media"><button onClick={()=>fileRef.current?.click()}>+ Photo / File</button><button onClick={()=>fileRef.current?.click()}>Voice</button><button onClick={()=>fileRef.current?.click()}>Video</button>{attachments.length>0&&<span className="attachmentCount">{attachments.length} selected</span>}</div><button className="primary" disabled={loading||active.length<1} onClick={()=>run("ask")}>{loading?"Thinking...":"Ask "+active.length+" Council Member"+(active.length===1?"":"s")}</button></section>
   <div className="status">{status}</div>
-  <section className="answers dynamic">{active.map(m=>{const r=responses.find(x=>x.member.id===m.id);return <article key={m.id}><div className="model"><b>{m.label}</b><span>{m.role||"Independent view"}</span></div><div className="answer">{r?(r.ok?r.text:friendlyError(r)):m.label+"'s position will appear here."}</div>{r&&!r.ok?<button disabled={loading} onClick={()=>retryMember(m)}>Retry {m.label}</button>:<button disabled={!r||loading} onClick={()=>run("challenge-member",m.id)}>Challenge {m.label}</button>}</article>})}</section>
+  <section className="answers dynamic">{active.map(m=>{const r=responses.find(x=>x.member.id===m.id);return <article key={m.id}><div className="model"><b>{m.label}</b><span>{m.role||"Independent view"}</span></div><div className="answer">{r?(r.ok?(r.text||m.label+" is thinking…"):friendlyError(r)):m.label+"'s position will appear here."}</div>{r&&!r.ok?<button disabled={loading} onClick={()=>retryMember(m)}>Retry {m.label}</button>:<button disabled={!r||loading} onClick={()=>run("challenge-member",m.id)}>Challenge {m.label}</button>}</article>})}</section>
   <section className="actions"><button disabled={responses.length<2||loading||finalComplete} onClick={()=>run("challenge-council")}>What is the Council missing?</button><button className="final" disabled={responses.length<2||loading||finalComplete} onClick={()=>run("final")}>{finalComplete?"Final Round Complete":"Request Final Round"}</button></section>{finalComplete&&<section className="actions"><button className="final" disabled={loading||Boolean(conclusion)} onClick={runConclusion}>{conclusion?"Council Conclusion Complete":"Generate Council Conclusion"}</button></section>}{conclusion&&<section className="answers dynamic"><article><div className="model"><b>Council Conclusion</b><span>Prepared by {conclusion.member.label}</span></div><div className="answer">{conclusion.ok?conclusion.text:friendlyError(conclusion)}</div></article></section>}
   <nav><button>C<small>Council</small></button><button>P<small>Projects</small></button><button>+<small>Create</small></button><button>M<small>Memory</small></button></nav>
  </main>
