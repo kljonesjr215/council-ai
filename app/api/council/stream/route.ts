@@ -11,7 +11,7 @@ async function upstream(b:z.infer<typeof schema>){
  const m=b.member;
  if(m.provider==="anthropic"){
   const key=process.env.ANTHROPIC_API_KEY;if(!key)return errorResponse("anthropic is not configured",503);
-  return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:m.model,max_tokens:900,stream:true,system:system(b.mode,m.role),messages:[{role:"user",content:b.prompt}]})});
+  return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:m.model,max_tokens:2400,stream:true,system:system(b.mode,m.role),messages:[{role:"user",content:b.prompt}]})});
  }
  if(m.provider==="google"){
   const key=process.env.GOOGLE_API_KEY;if(!key)return errorResponse("google is not configured",503);
