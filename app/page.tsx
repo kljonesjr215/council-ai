@@ -6,17 +6,17 @@ type Response={member:Member;text:string;ok:boolean};
 function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("high demand")||t.includes("try again later")||t.includes("overloaded")||t.includes("503"))return r.member.label+" is temporarily busy. Retry this member in a moment.";if(t.includes("429")||t.includes("quota")||t.includes("credits"))return r.member.label+" is temporarily unavailable because its provider limit was reached.";return r.text}
 
 function formatInline(value:string){
- const parts=value.split(/(\\*\\*[^*]+\\*\\*|\\*[^*\\n]+\\*|\`[^\`]+\`)/g);
- return parts.map((part,i)=>part.startsWith("**")&&part.endsWith("**")?<strong key={i}>{part.slice(2,-2)}</strong>:part.startsWith("*")&&part.endsWith("*")?<em key={i}>{part.slice(1,-1)}</em>:part.startsWith("\`")&&part.endsWith("\`")?<code key={i}>{part.slice(1,-1)}</code>:part);
+ const parts=value.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`)/g);
+ return parts.map((part,i)=>part.startsWith("**")&&part.endsWith("**")?<strong key={i}>{part.slice(2,-2)}</strong>:part.startsWith("*")&&part.endsWith("*")?<em key={i}>{part.slice(1,-1)}</em>:part.startsWith("`")&&part.endsWith("`")?<code key={i}>{part.slice(1,-1)}</code>:part);
 }
 function FormattedAnswer({text}:{text:string}){
- const lines=text.split(/\\r?\\n/);
+ const lines=text.split(/\r?\n/);
  return <div className="formatted-answer">{lines.map((line,i)=>{
-  const heading=line.match(/^(#{1,3})\\s+(.+)$/);
+  const heading=line.match(/^(#{1,6})\s+(.+)$/);
   if(heading)return <div key={i} className="answer-heading"><strong>{formatInline(heading[2])}</strong></div>;
-  const bullet=line.match(/^\\s*[-*•]\\s+(.+)$/);
+  const bullet=line.match(/^\s*[-*•]\s+(.+)$/);
   if(bullet)return <div key={i} className="answer-list-item"><span aria-hidden="true">•</span><span>{formatInline(bullet[1])}</span></div>;
-  const number=line.match(/^\\s*(\\d+)[.)]\\s+(.+)$/);
+  const number=line.match(/^\s*(\d+)[.)]\s+(.+)$/);
   if(number)return <div key={i} className="answer-list-item"><span>{number[1]}.</span><span>{formatInline(number[2])}</span></div>;
   if(!line.trim())return <div key={i} className="answer-paragraph-gap"/>;
   return <div key={i}>{formatInline(line)}</div>;
