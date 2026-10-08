@@ -76,13 +76,20 @@ export default function Home(){
     window.setTimeout(render,18);
    };
    render();
-   while(true){const {done,value}=await reader.read();if(done)break;received+=decoder.decode(value,{stream:true})}
+   while(true){
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error("Council response stalled")),30000)});
+    let result:ReadableStreamReadResult<Uint8Array>;
+    try{result=await Promise.race([reader.read(),timeout])}finally{if(timer)clearTimeout(timer)}
+    if(result.done)break;
+    received+=decoder.decode(result.value,{stream:true});
+   }
    received+=decoder.decode();networkDone=true;if(!received.trim())throw new Error(member.label+" did not return a response");
    await typingDone;setTypingMembers(old=>old.filter(id=>id!==member.id));return {member,text:received,ok:true} as Response;
   }catch(e){
    networkDone=true;setTypingMembers(old=>old.filter(id=>id!==member.id));
    const raw=e instanceof Error?e.message:"Unavailable";
-   const message=/abort|stalled|timed out|no stream text|did not return|<!doctype|<html|internal server error/i.test(raw)?member.label+" is temporarily unavailable. Please retry this member.":raw;
+   const message=/abort|stalled|timed out|no stream text|did not return|<!doctype|<html|internal server error/i.test(raw)?member.label+" paused unexpectedly. Retry this member to continue.":raw;
    const failed:Response={member,text:message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
   }
  }
