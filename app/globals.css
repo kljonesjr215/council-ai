@@ -13,3 +13,6 @@
 .answer .formatted-answer .answer-list-item>span:first-child{flex:none;color:var(--accent2);font-weight:700}
 .answer .formatted-answer .answer-paragraph-gap{height:13px}
 .answer .formatted-answer code{background:#252d3d;border-radius:4px;padding:1px 4px;font-size:.9em}
+
+.answer .formatted-answer .answer-numbered{color:var(--accent2);font-weight:800;font-size:16px;margin-top:17px;margin-bottom:8px}
+.answer .formatted-answer .answer-numbered strong{color:inherit}
