@@ -22,7 +22,7 @@ function FormattedAnswer({text}:{text:string}){
   return <div key={i}>{formatInline(line)}</div>;
  })}</div>;
 }
-\nconst initial:Member[]=[
+const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-5.6-luna",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
  {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.5-flash-lite",enabled:true,role:"Independent"}
