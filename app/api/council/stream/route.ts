@@ -43,7 +43,7 @@ export async function POST(req:Request){
  try{
   const b=schema.parse(await req.json());const r=await upstream(b);
   if(!r.ok||!r.body){const msg=await r.text();return errorResponse(msg||b.member.label+" is unavailable",r.status||502)}
-  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";let emitted=false;let completed=false;let finishError="";
+  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";let emitted=false;let completed=false;let finishError="";let charCount=0;let stopReason="unknown";const started=Date.now();
   const body=new ReadableStream({
    async start(controller){
     try{
@@ -61,27 +61,29 @@ export async function POST(req:Request){
        try{const event=JSON.parse(data);
         if(b.member.provider==="anthropic"){
          if(event.type==="message_stop")completed=true;
+         if(event.type==="message_delta"&&event.delta?.stop_reason)stopReason=event.delta.stop_reason;
          if(event.type==="message_delta"&&event.delta?.stop_reason==="max_tokens")finishError="Claude reached its output limit";
          if(event.type==="error")finishError="Claude provider error";
         }
         if(b.member.provider==="openai"){
-         if(event.type==="response.completed")completed=true;
+         if(event.type==="response.completed"){completed=true;stopReason=event.response?.status||"completed"}
          if(event.type==="response.failed"||event.type==="response.incomplete")finishError="GPT response incomplete";
         }
         if(b.member.provider==="google"&&event.candidates?.[0]?.finishReason){
-         const reason=event.candidates[0].finishReason;
+         const reason=event.candidates[0].finishReason;stopReason=reason;
          if(reason==="STOP")completed=true;else finishError="Gemini stopped: "+reason;
         }
        }catch{}
-       const chunk=extract(b.member.provider,data);if(chunk){emitted=true;controller.enqueue(encoder.encode(chunk));}
+       const chunk=extract(b.member.provider,data);if(chunk){emitted=true;charCount+=chunk.length;controller.enqueue(encoder.encode(chunk));}
       }
      }
      if(buffer.startsWith("data:")){const data=buffer.slice(5).trim();if(data&&data!=="[DONE]"){const chunk=extract(b.member.provider,data);if(chunk){emitted=true;controller.enqueue(encoder.encode(chunk))}}}
      if(!emitted)throw new Error(b.member.label+" returned no stream text");
      if(finishError)throw new Error(finishError);
      if(!completed)throw new Error(b.member.label+" stream ended without completion confirmation");
+     console.info("[Council stream]",JSON.stringify({provider:b.member.provider,model:b.member.model,mode:b.mode,completed,stopReason,characters:charCount,durationMs:Date.now()-started}));
      controller.close();
-    }catch(e){controller.error(e)}
+    }catch(e){console.error("[Council stream failed]",JSON.stringify({provider:b.member.provider,model:b.member.model,mode:b.mode,completed,stopReason,characters:charCount,durationMs:Date.now()-started,error:e instanceof Error?e.message:"unknown"}));controller.error(e)}
    },
    cancel(){reader.cancel()}
   });
