@@ -59,12 +59,12 @@ export default function Home(){
  async function streamMember(member:Member,context:string,mode:Mode,targetMemberId?:string){
   const pending:Response={member,text:"",ok:true};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),pending]);
   setTypingMembers(old=>old.includes(member.id)?old:[...old,member.id]);
-  let networkDone=false;
+  let networkDone=false;let received="";let visible="";
   try{
    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
    if(!r.ok||!r.body){throw new Error(member.label+" could not respond (server status "+r.status+"). Please retry this member.")}
    const reader=r.body.getReader();const decoder=new TextDecoder();
-   let received="";let visible="";let typingDoneResolve:()=>void=()=>{};
+   let typingDoneResolve:()=>void=()=>{};
    const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
    const render=()=>{
     if(visible.length<received.length){
@@ -90,7 +90,7 @@ export default function Home(){
    networkDone=true;setTypingMembers(old=>old.filter(id=>id!==member.id));
    const raw=e instanceof Error?e.message:"Unavailable";
    const message=/abort|stalled|timed out|no stream text|did not return|<!doctype|<html|internal server error/i.test(raw)?member.label+" paused unexpectedly. Retry this member to continue.":raw;
-   const failed:Response={member,text:message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
+   const failed:Response={member,text:received.trim()?received+"\n\n[Response interrupted — retry "+member.label+" to continue.]":message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
   }
  }
  async function run(mode:Mode,targetMemberId?:string){
