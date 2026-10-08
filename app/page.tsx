@@ -17,7 +17,7 @@ function FormattedAnswer({text}:{text:string}){
   const bullet=line.match(/^\s*[-*•]\s+(.+)$/);
   if(bullet)return <div key={i} className="answer-list-item"><span aria-hidden="true">•</span><span>{formatInline(bullet[1])}</span></div>;
   const number=line.match(/^\s*(\d+)[.)]\s+(.+)$/);
-  if(number)return <div key={i} className="answer-list-item"><span>{number[1]}.</span><span>{formatInline(number[2])}</span></div>;
+  if(number)return <div key={i} className="answer-list-item answer-numbered"><span>{number[1]}.</span><span>{formatInline(number[2])}</span></div>;
   if(!line.trim())return <div key={i} className="answer-paragraph-gap"/>;
   return <div key={i}>{formatInline(line)}</div>;
  })}</div>;
