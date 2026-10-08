@@ -62,7 +62,7 @@ export default function Home(){
   let networkDone=false;
   try{
    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
-   if(!r.ok||!r.body){const message=await r.text();throw new Error(message||"Request failed")}
+   if(!r.ok||!r.body){throw new Error(member.label+" could not respond (server status "+r.status+"). Please retry this member.")}
    const reader=r.body.getReader();const decoder=new TextDecoder();
    let received="";let visible="";let typingDoneResolve:()=>void=()=>{};
    const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
@@ -82,7 +82,7 @@ export default function Home(){
   }catch(e){
    networkDone=true;setTypingMembers(old=>old.filter(id=>id!==member.id));
    const raw=e instanceof Error?e.message:"Unavailable";
-   const message=/abort|stalled|timed out|no stream text|did not return/i.test(raw)?member.label+" is temporarily unavailable. Try again.":raw;
+   const message=/abort|stalled|timed out|no stream text|did not return|<!doctype|<html|internal server error/i.test(raw)?member.label+" is temporarily unavailable. Please retry this member.":raw;
    const failed:Response={member,text:message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
   }
  }
