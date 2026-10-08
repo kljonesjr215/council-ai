@@ -68,7 +68,7 @@ export default function Home(){
    const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
    const render=()=>{
     if(visible.length<received.length){
-     const remaining=received.length-visible.length;const step=remaining>240?5:remaining>120?3:remaining>50?2:1;
+     const remaining=received.length-visible.length;const step=remaining>500?Math.min(remaining,100):remaining>180?Math.min(remaining,45):remaining>60?Math.min(remaining,16):remaining>20?8:3;
      visible=received.slice(0,Math.min(received.length,visible.length+step));
      setResponses(old=>[...old.filter(x=>x.member.id!==member.id),{member,text:visible,ok:true}]);
     }
