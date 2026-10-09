@@ -1,5 +1,6 @@
 "use client";
-import {useMemo,useRef,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {createClient} from "@/lib/supabase/client";
 type Mode="ask"|"challenge-member"|"challenge-council"|"final"|"conclusion";
 type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
@@ -29,6 +30,26 @@ const initial:Member[]=[
 ];
 export default function Home(){
  const [typingMembers,setTypingMembers]=useState<string[]>([]);const [prompt,setPrompt]=useState("");const [followUp,setFollowUp]=useState("");const [challengeOpen,setChallengeOpen]=useState<string>();const [memberChallenges,setMemberChallenges]=useState<Record<string,string>>({});const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
+ const [account,setAccount]=useState<{email:string;name:string;avatar?:string}|null>(null);
+ const [accountLoading,setAccountLoading]=useState(true);
+ const [accountOpen,setAccountOpen]=useState(false);
+ useEffect(()=>{
+  const supabase=createClient();
+  let mounted=true;
+  const update=(user:import("@supabase/supabase-js").User|null)=>{
+   if(!mounted)return;
+   const metadata=user?.user_metadata||{};
+   setAccount(user?{email:user.email||"",name:metadata.full_name||metadata.name||user.email?.split("@")[0]||"Council member",avatar:metadata.avatar_url||metadata.picture}:null);
+   setAccountLoading(false);
+  };
+  supabase.auth.getUser().then(({data})=>update(data.user)).catch(()=>{if(mounted)setAccountLoading(false)});
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>update(session?.user||null));
+  return ()=>{mounted=false;subscription.unsubscribe()};
+ },[]);
+ async function signOut(){
+  try{await createClient().auth.signOut();setAccount(null);setAccountOpen(false);window.location.assign("/login")}
+  catch{setStatus("Could not sign out. Please try again.")}
+ }
  const active=useMemo(()=>members.filter(m=>m.enabled),[members]);
  function toggle(id:string){setMembers(x=>x.map(m=>m.id===id?{...m,enabled:!m.enabled}:m))}
  function setRole(id:string,role:string){setMembers(x=>x.map(m=>m.id===id?{...m,role}:m))}
@@ -106,7 +127,17 @@ export default function Home(){
   }catch(e){setStatus(e instanceof Error?e.message:"Something went wrong")}finally{setLoading(false)}
  }
  return <main>
-  <header><div className="brand"><span className="mark">C</span><div><h1>COUNCIL</h1><p>AI deliberation by AHG</p></div></div><a className="memory" href="/login">Account</a></header>
+  <header><div className="brand"><span className="mark">C</span><div><h1>COUNCIL</h1><p>AI deliberation by AHG</p></div></div><div style={{position:"relative"}}>
+   {account?<button className="memory" type="button" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)} style={{display:"flex",alignItems:"center",gap:8}}>
+    {account.avatar&&<img src={account.avatar} alt="" referrerPolicy="no-referrer" style={{width:26,height:26,borderRadius:"50%"}}/>}
+    <span>{account.name}</span>
+   </button>:<a className="memory" href="/login">{accountLoading?"Checking account…":"Sign in"}</a>}
+   {account&&accountOpen&&<div style={{position:"absolute",right:0,top:"calc(100% + 10px)",zIndex:20,minWidth:240,padding:16,background:"#242a36",border:"1px solid #6d6370",borderRadius:12,boxShadow:"0 12px 28px #0008",color:"#fff"}}>
+    <strong style={{display:"block",marginBottom:6}}>{account.name}</strong>
+    <span style={{display:"block",fontSize:13,overflowWrap:"anywhere",marginBottom:14}}>{account.email}</span>
+    <button type="button" className="secondary" onClick={signOut}>Sign out</button>
+   </div>}
+  </div></header>
   <section className="hero"><span className="eyebrow">COUNCIL.AI • V1</span><h2>Build your Council. Challenge the answer.</h2><p>Select independent AI members, give them evidence, let them disagree, then decide for yourself.</p></section>
   <section className="roster"><div className="sectionHead"><div><b>Choose Your Council</b><span>{active.length} active member{active.length===1?"":"s"}</span></div><small>More providers can be added without rebuilding Council.</small></div><div className="memberGrid">{members.map(m=><button key={m.id} className={"memberCard "+(m.enabled?"selected":"")} onClick={()=>toggle(m.id)}><span className="memberCheck">{m.enabled?"✓":"+"}</span><b>{m.label}</b><small>Role</small><select value={m.role||"Independent"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setRole(m.id,e.target.value)}}><option>Independent</option><option>Strategist</option><option>Skeptic</option><option>Researcher</option><option>Financial Analyst</option><option>Creative</option><option>Devil's Advocate</option></select><em>{m.enabled?"Active":"Tap to add"}</em></button>)}</div></section>
   <section className="composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="What do you want the Council to think through?"/><input ref={fileRef} hidden multiple type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt" onChange={e=>setAttachments(Array.from(e.target.files||[]))}/><div className="media"><button onClick={()=>fileRef.current?.click()}>+ Photo / File</button><button onClick={()=>fileRef.current?.click()}>Voice</button><button onClick={()=>fileRef.current?.click()}>Video</button>{attachments.length>0&&<span className="attachmentCount">{attachments.length} selected</span>}</div><button className="primary" disabled={loading||active.length<1} onClick={()=>run("ask")}>{loading?"Thinking...":"Ask "+active.length+" Council Member"+(active.length===1?"":"s")}</button></section>
