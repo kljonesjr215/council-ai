@@ -95,7 +95,7 @@ export default function Home(){
   let networkDone=false;let received="";let visible="";
   try{
    const r=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:context,mode,targetMemberId,member})});
-   if(!r.ok||!r.body){throw new Error(member.label+" could not respond (server status "+r.status+"). Please retry this member.")}
+   if(!r.ok||!r.body){const detail=(await r.text().catch(()=>"")).slice(0,500);let message=detail;try{const parsed=JSON.parse(detail);message=parsed.error?.message||parsed.message||detail}catch{}throw new Error(member.label+" could not respond (server status "+r.status+"): "+(message||"Unknown provider error"))}
    const reader=r.body.getReader();const decoder=new TextDecoder();
    let typingDoneResolve:()=>void=()=>{};
    const typingDone=new Promise<void>(resolve=>{typingDoneResolve=resolve});
