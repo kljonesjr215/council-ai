@@ -9,6 +9,11 @@ function system(mode:z.infer<typeof schema>["mode"],role?:string){return council
 function errorResponse(message:string,status=400){return new Response(message,{status,headers:{"Content-Type":"text/plain; charset=utf-8"}})}
 async function upstream(b:z.infer<typeof schema>){
  const m=b.member;
+ if(m.provider==="custom"){
+  const key=process.env.OPENROUTER_API_KEY;if(!key)return errorResponse("Additional AI models are not configured yet. Set OPENROUTER_API_KEY on the server.",503);
+  if(!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.:/-]+$/.test(m.model))return errorResponse("Invalid OpenRouter model ID",400);
+  return fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"X-OpenRouter-Title":"Council.AI"},body:JSON.stringify({model:m.model,stream:true,messages:[{role:"system",content:system(b.mode,m.role)},{role:"user",content:b.prompt}]})});
+ }
  if(m.provider==="anthropic"){
   const key=process.env.ANTHROPIC_API_KEY;if(!key)return errorResponse("anthropic is not configured",503);
   return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:m.model,max_tokens:4096,stream:true,system:system(b.mode,m.role),messages:[{role:"user",content:b.prompt}]})});
@@ -32,6 +37,7 @@ async function upstream(b:z.infer<typeof schema>){
 function extract(provider:string,data:string){
  try{
   const j=JSON.parse(data);
+  if(provider==="custom")return j.choices?.[0]?.delta?.content||"";
   if(provider==="anthropic"&&j.type==="content_block_delta"&&j.delta?.type==="text_delta")return j.delta.text||"";
   if(provider==="google")return (j.candidates?.[0]?.content?.parts||[]).map((p:{text?:string})=>p.text||"").join("");
   if(provider==="openai"&&j.type==="response.output_text.delta")return j.delta||"";
@@ -59,6 +65,8 @@ export async function POST(req:Request){
        if(!line.startsWith("data:"))continue;
        const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
        try{const event=JSON.parse(data);
+        if(b.member.provider==="custom"&&event.choices?.[0]?.finish_reason){completed=true;stopReason=event.choices[0].finish_reason;}
+        if(b.member.provider==="custom"&&event.error)finishError="Custom model provider error";
         if(b.member.provider==="anthropic"){
          if(event.type==="message_stop")completed=true;
          if(event.type==="message_delta"&&event.delta?.stop_reason)stopReason=event.delta.stop_reason;
