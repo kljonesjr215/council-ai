@@ -39,6 +39,12 @@ const initial:Member[]=[
 ];
 export default function Home(){
  const [libraryOpen,setLibraryOpen]=useState(false);const [librarySearch,setLibrarySearch]=useState("");const [customName,setCustomName]=useState("");const [customModel,setCustomModel]=useState("");
+ const [workspaceMode,setWorkspaceMode]=useState<"individual"|"council">("council");
+ const [assignment,setAssignment]=useState("");
+ const [teamResult,setTeamResult]=useState("");
+ const [teamFeedback,setTeamFeedback]=useState("");
+ const [teamBusy,setTeamBusy]=useState(false);
+ const [teamHistory,setTeamHistory]=useState<string[]>([]);
  const [focusedMemberId,setFocusedMemberId]=useState("gpt");const [typingMembers,setTypingMembers]=useState<string[]>([]);const [prompt,setPrompt]=useState("");const [followUp,setFollowUp]=useState("");const [challengeOpen,setChallengeOpen]=useState<string>();const [memberChallenges,setMemberChallenges]=useState<Record<string,string>>({});const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
  const [account,setAccount]=useState<{email:string;name:string;avatar?:string}|null>(null);
  const [accountLoading,setAccountLoading]=useState(true);
@@ -126,6 +132,28 @@ export default function Home(){
    const failed:Response={member,text:received.trim()?received+"\n\n[Response interrupted — retry "+member.label+" to continue.]":message,ok:false};setResponses(old=>[...old.filter(x=>x.member.id!==member.id),failed]);return failed
   }
  }
+ async function assignTeam(revise=false){
+  const task=assignment.trim();if(!task||active.length<2||teamBusy)return;
+  setTeamBusy(true);setStatus(revise?"Council is revising the assignment...":"Council team is collaborating...");
+  try{
+   const context=revise?[task,"PREVIOUS DELIVERABLE:",teamResult,"CHAIRPERSON FEEDBACK:",teamFeedback].join("\\n\\n"):task;
+   const contributions:string[]=[];
+   for(const member of active){
+    setStatus(member.label+" is working on the Council assignment...");
+    const r=await streamMember(member,context+"\\n\\nYour role: "+(member.role||"Independent")+". Provide a useful contribution for the team.", "ask");
+    if(r.ok)contributions.push(member.label+":\\n"+r.text);
+   }
+   if(!contributions.length)throw new Error("No Council members completed their contributions.");
+   const lead=active.find(m=>m.id==="gpt")||active[0];
+   setStatus("Combining the Council's work into one deliverable...");
+   const response=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({member:lead,mode:"conclusion",prompt:"You are preparing the Council's single coordinated deliverable for its Chairperson. Original assignment:\\n"+context+"\\n\\nTEAM CONTRIBUTIONS:\\n"+contributions.join("\\n\\n")+"\\n\\nCombine the strongest compatible ideas, resolve conflicts, identify any uncertainties, and deliver a clear actionable result. Do not claim consensus where members disagree."})});
+   if(!response.ok)throw new Error("The Council could not prepare its combined deliverable ("+response.status+").");
+   const reader=response.body?.getReader();if(!reader)throw new Error("No Council deliverable was returned.");
+   const decoder=new TextDecoder();let result="";while(true){const chunk=await reader.read();if(chunk.done)break;result+=decoder.decode(chunk.value,{stream:true})}result+=decoder.decode();
+   if(!result.trim())throw new Error("The Council returned an empty deliverable.");
+   setTeamResult(result);setTeamHistory(h=>[...h,result]);setTeamFeedback("");setStatus("Council deliverable ready for your review.");
+  }catch(e){setStatus(e instanceof Error?e.message:"Council assignment failed");}finally{setTeamBusy(false)}
+ }
  async function run(mode:Mode,targetMemberId?:string){
   if(!prompt.trim()&&mode==="ask")return;setLoading(true);setStatus(mode==="final"?"Council members are forming their final positions...":"Council members are thinking...");
   const prior=responses.filter(r=>r.text).map(r=>r.member.label+" PRIOR POSITION:\n"+r.text).join("\n\n");const context=mode==="ask"?prompt:[prompt,prior].filter(Boolean).join("\n\n");
@@ -170,6 +198,17 @@ export default function Home(){
    <button type="button" className="primary" style={{width:"100%",marginTop:16}} onClick={()=>setLibraryOpen(false)}>Done · {members.filter(m=>m.enabled).length} selected</button>
    <p style={{fontSize:11,marginBottom:0,color:"#b8bec8"}}>Additional AI providers require server-side OpenRouter configuration before they can respond.</p>
   </div>}</section>
+  <section style={{marginTop:16,padding:16,border:"1px solid #77664f",borderRadius:14,background:"#252e3b",color:"#fff"}}>
+   <div className="sectionHead"><div><b>Your AI Workspace</b><span>Choose an individual conversation or assign a Council team</span></div></div>
+   <div style={{display:"flex",gap:8,marginBottom:12}}><button type="button" className={workspaceMode==="individual"?"primary":"secondary"} onClick={()=>setWorkspaceMode("individual")}>Individual Chat</button><button type="button" className={workspaceMode==="council"?"primary":"secondary"} onClick={()=>setWorkspaceMode("council")}>Council Team</button></div>
+   {workspaceMode==="individual"?<p style={{fontSize:13,color:"#cbd3dd"}}>For a private conversation with one AI, select just that member above and use the Ask box below. Team collaboration is not started.</p>:<div>
+    <p style={{fontSize:13,color:"#cbd3dd"}}>Assign two or more selected AI members to one task. They contribute independently, then a lead member combines their work for your review.</p>
+    <textarea aria-label="Council team assignment" value={assignment} onChange={e=>setAssignment(e.target.value)} placeholder="Chairperson, what should your AI team work on?" style={{width:"100%",minHeight:90,boxSizing:"border-box",padding:12,marginBottom:10}}/>
+    <button type="button" className="primary" disabled={teamBusy||active.length<2||!assignment.trim()} onClick={()=>assignTeam()}>{teamBusy?"Council is working...":"Assign to Team"}</button>
+    {active.length<2&&<p style={{fontSize:12}}>Select at least two Council members to collaborate.</p>}
+    {teamResult&&<div style={{marginTop:16,padding:14,border:"1px solid #687080",borderRadius:12}}><b>Team Deliverable · Version {teamHistory.length}</b><div className="answer" style={{maxHeight:420,overflowY:"auto",marginTop:12}}><FormattedAnswer text={teamResult}/></div><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button type="button" className="secondary" onClick={()=>setStatus("This version is your selected result. Persistent project saving is coming next.")}>Looks Good!</button><button type="button" className="secondary" onClick={()=>setTeamFeedback("Please improve the result by: ")}>Try Another Take</button></div><textarea aria-label="Feedback to Council" value={teamFeedback} onChange={e=>setTeamFeedback(e.target.value)} placeholder="What would you like the team to change?" style={{width:"100%",minHeight:65,boxSizing:"border-box",padding:10,marginTop:10}}/><button type="button" disabled={teamBusy||!teamFeedback.trim()} onClick={()=>assignTeam(true)}>Send Back to Council</button></div>}
+   </div>}
+  </section>
   <section className="composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="What do you want the Council to think through?"/><input ref={fileRef} hidden multiple type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt" onChange={e=>setAttachments(Array.from(e.target.files||[]))}/><div className="media"><button onClick={()=>fileRef.current?.click()}>+ Photo / File</button><button onClick={()=>fileRef.current?.click()}>Voice</button><button onClick={()=>fileRef.current?.click()}>Video</button>{attachments.length>0&&<span className="attachmentCount">{attachments.length} selected</span>}</div><button className="primary" disabled={loading||active.length<1} onClick={()=>run("ask")}>{loading?"Thinking...":"Ask "+active.length+" Council Member"+(active.length===1?"":"s")}</button></section>
   <div className="status">{status}</div>
     <section style={{marginTop:18}}>
