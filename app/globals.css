@@ -2,3 +2,17 @@
 .authShell{min-height:100vh;display:grid;place-items:center;padding:24px}.authCard{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:28px}.authCard h1{font-family:Georgia,serif;font-size:38px;margin:12px 0}.authCard p,.authCard small{color:var(--muted)}.authCard form{display:grid;gap:12px;margin:24px 0}.authCard input{background:#0b0e14;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:14px;outline:none}.secondary{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:14px}
 
 .memory{text-decoration:none}.roster{margin:0 0 18px;background:rgba(18,23,34,.72);border:1px solid var(--line);border-radius:20px;padding:18px}.sectionHead{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:14px}.sectionHead>div{display:grid;gap:4px}.sectionHead span,.sectionHead small{color:var(--muted);font-size:12px}.memberGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.memberCard{position:relative;text-align:left;display:grid;gap:5px;background:#0b0e14;color:var(--text);border:1px solid var(--line);border-radius:15px;padding:15px}.memberCard.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(217,184,108,.18)}.memberCard b{color:var(--accent2);font-size:16px}.memberCard small{color:var(--text)}.memberCard em{font-style:normal;color:var(--muted);font-size:10px}.memberCheck{position:absolute;right:12px;top:10px;color:var(--accent)}.attachmentCount{align-self:center;color:var(--accent2);font-size:12px}.answers.dynamic{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}@media(max-width:700px){.memberGrid{grid-template-columns:1fr}.sectionHead{align-items:start;flex-direction:column}.roster{padding:14px}}
+
+/* Council response typography */
+.answer .formatted-answer{white-space:normal;overflow-wrap:anywhere;font-size:15px;line-height:1.65}
+.answer .formatted-answer strong{font-weight:800;color:#ffffff}
+.answer .formatted-answer .answer-heading{font-size:17px;font-weight:800;color:var(--accent2);line-height:1.4;margin:20px 0 10px}
+.answer .formatted-answer .answer-heading:first-child{margin-top:0}
+.answer .formatted-answer .answer-heading strong{color:inherit;font-weight:800}
+.answer .formatted-answer .answer-list-item{display:flex;gap:10px;padding-left:8px;margin:5px 0}
+.answer .formatted-answer .answer-list-item>span:first-child{flex:none;color:var(--accent2);font-weight:700}
+.answer .formatted-answer .answer-paragraph-gap{height:13px}
+.answer .formatted-answer code{background:#252d3d;border-radius:4px;padding:1px 4px;font-size:.9em}
+
+.answer .formatted-answer .answer-numbered{color:var(--accent2);font-weight:800;font-size:16px;margin-top:17px;margin-bottom:8px}
+.answer .formatted-answer .answer-numbered strong{color:inherit}

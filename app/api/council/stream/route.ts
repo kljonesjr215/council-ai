@@ -1,0 +1,101 @@
+import {z} from "zod";
+import {councilInstruction} from "@/lib/prompts";
+
+const member=z.object({id:z.string(),provider:z.enum(["openai","anthropic","google","custom"]),label:z.string(),model:z.string().min(1),enabled:z.boolean(),role:z.string().optional()});
+const schema=z.object({prompt:z.string().min(1).max(20000),mode:z.enum(["ask","challenge-member","challenge-council","final","conclusion"]).default("ask"),member});
+const encoder=new TextEncoder();
+
+function system(mode:z.infer<typeof schema>["mode"],role?:string){return councilInstruction(mode)+(role?"\nYour Council role: "+role:"")}
+function errorResponse(message:string,status=400){return new Response(message,{status,headers:{"Content-Type":"text/plain; charset=utf-8"}})}
+async function upstream(b:z.infer<typeof schema>){
+ const m=b.member;
+ if(m.provider==="custom"){
+  const key=process.env.OPENROUTER_API_KEY;if(!key)return errorResponse("Additional AI models are not configured yet. Set OPENROUTER_API_KEY on the server.",503);
+  if(!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.:/-]+$/.test(m.model))return errorResponse("Invalid OpenRouter model ID",400);
+  return fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"X-OpenRouter-Title":"Council.AI"},body:JSON.stringify({model:m.model,stream:true,messages:[{role:"system",content:system(b.mode,m.role)},{role:"user",content:b.prompt}]})});
+ }
+ if(m.provider==="anthropic"){
+  const key=process.env.ANTHROPIC_API_KEY;if(!key)return errorResponse("anthropic is not configured",503);
+  return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:m.model,max_tokens:4096,stream:true,system:system(b.mode,m.role),messages:[{role:"user",content:b.prompt}]})});
+ }
+ if(m.provider==="google"){
+  const key=process.env.GOOGLE_API_KEY;if(!key)return errorResponse("google is not configured",503);
+  const primary=m.model&&m.model!=="gemini"?m.model:(process.env.GOOGLE_MODEL||"gemini-3.8-flash");
+  const call=(model:string)=>fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":streamGenerateContent?alt=sse",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({system_instruction:{parts:[{text:system(b.mode,m.role)}]},contents:[{role:"user",parts:[{text:b.prompt}]}]}),signal:AbortSignal.timeout(20000)});
+  let r:Response;
+  try{r=await call(primary)}catch{if(primary==="gemini-3.5-flash-lite")return errorResponse("Gemini timed out before responding",504);r=await call("gemini-3.5-flash-lite")}
+  if(!r.ok){const msg=await r.clone().text();if(/high demand|try again later|overloaded|timeout/i.test(msg)&&primary!=="gemini-3.5-flash-lite")r=await call("gemini-3.5-flash-lite")}
+  return r;
+ }
+ if(m.provider==="openai"){
+  const key=process.env.OPENAI_API_KEY;if(!key)return errorResponse("openai is not configured",503);
+  return fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},body:JSON.stringify({model:m.model,instructions:system(b.mode,m.role),input:b.prompt,stream:true})});
+ }
+ return errorResponse("Provider streaming is not installed yet",501);
+}
+
+function extract(provider:string,data:string){
+ try{
+  const j=JSON.parse(data);
+  if(provider==="custom")return j.choices?.[0]?.delta?.content||"";
+  if(provider==="anthropic"&&j.type==="content_block_delta"&&j.delta?.type==="text_delta")return j.delta.text||"";
+  if(provider==="google")return (j.candidates?.[0]?.content?.parts||[]).map((p:{text?:string})=>p.text||"").join("");
+  if(provider==="openai"&&j.type==="response.output_text.delta")return j.delta||"";
+ }catch{}
+ return "";
+}
+
+export async function POST(req:Request){
+ try{
+  const b=schema.parse(await req.json());const r=await upstream(b);
+  if(!r.ok||!r.body){const msg=await r.text();return errorResponse(msg||b.member.label+" is unavailable",r.status||502)}
+  const reader=r.body.getReader();const decoder=new TextDecoder();let buffer="";let emitted=false;let completed=false;let finishError="";let charCount=0;let stopReason="unknown";const started=Date.now();
+  const body=new ReadableStream({
+   async start(controller){
+    try{
+     while(true){
+      const read=reader.read();
+      const timeout=new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error("Provider stream stalled")),25000));
+      const {done,value}=await Promise.race([read,timeout]);
+      if(done)break;
+
+      buffer+=decoder.decode(value,{stream:true});
+      const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";
+      for(const line of lines){
+       if(!line.startsWith("data:"))continue;
+       const data=line.slice(5).trim();if(!data||data==="[DONE]")continue;
+       try{const event=JSON.parse(data);
+        if(b.member.provider==="custom"&&event.choices?.[0]?.finish_reason){completed=true;stopReason=event.choices[0].finish_reason;}
+        if(b.member.provider==="custom"&&event.error)finishError="Custom model provider error";
+        if(b.member.provider==="anthropic"){
+         if(event.type==="message_stop")completed=true;
+         if(event.type==="message_delta"&&event.delta?.stop_reason)stopReason=event.delta.stop_reason;
+         if(event.type==="message_delta"&&event.delta?.stop_reason==="max_tokens")finishError="Claude reached its output limit";
+         if(event.type==="error")finishError="Claude provider error";
+        }
+        if(b.member.provider==="openai"){
+         if(event.type==="response.completed"){completed=true;stopReason=event.response?.status||"completed"}
+         if(event.type==="response.failed"||event.type==="response.incomplete")finishError="GPT response incomplete";
+        }
+        if(b.member.provider==="google"&&event.candidates?.[0]?.finishReason){
+         const reason=event.candidates[0].finishReason;stopReason=reason;
+         if(reason==="STOP")completed=true;else finishError="Gemini stopped: "+reason;
+        }
+       }catch{}
+       const chunk=extract(b.member.provider,data);if(chunk){emitted=true;charCount+=chunk.length;controller.enqueue(encoder.encode(chunk));}
+      }
+     }
+     if(buffer.startsWith("data:")){const data=buffer.slice(5).trim();if(data&&data!=="[DONE]"){const chunk=extract(b.member.provider,data);if(chunk){emitted=true;controller.enqueue(encoder.encode(chunk))}}}
+     if(!emitted)throw new Error(b.member.label+" returned no stream text");
+     if(finishError)throw new Error(finishError);
+     if(!completed)throw new Error(b.member.label+" stream ended without completion confirmation");
+     console.info("[Council stream]",JSON.stringify({provider:b.member.provider,model:b.member.model,mode:b.mode,completed,stopReason,characters:charCount,durationMs:Date.now()-started}));
+     controller.close();
+    }catch(e){console.error("[Council stream failed]",JSON.stringify({provider:b.member.provider,model:b.member.model,mode:b.mode,completed,stopReason,characters:charCount,durationMs:Date.now()-started,error:e instanceof Error?e.message:"unknown"}));controller.error(e)}
+   },
+   cancel(){reader.cancel()}
+  });
+  return new Response(body,{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-cache, no-transform","X-Accel-Buffering":"no"}});
+
+ }catch(e){return errorResponse(e instanceof Error?e.message:"Streaming request failed")}
+}
