@@ -12,16 +12,29 @@ function formatInline(value:string){
 }
 function FormattedAnswer({text}:{text:string}){
  const lines=text.split(/\r?\n/);
- return <div className="formatted-answer">{lines.map((line,i)=>{
+ const rendered:React.ReactNode[]=[];
+ const splitCells=(line:string)=>line.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim());
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i];
+  if(/^\s*\|.+\|\s*$/.test(line)&&i+1<lines.length&&/^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i+1])){
+   const headers=splitCells(line);const rows:string[][]=[];i+=2;
+   while(i<lines.length&&/^\s*\|.+\|\s*$/.test(lines[i])){rows.push(splitCells(lines[i]));i++}i--;
+   rendered.push(<div key={"table-"+i} style={{overflowX:"auto",maxWidth:"100%",margin:"10px 0"}}><table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}><thead><tr>{headers.map((h,j)=><th key={j} style={{textAlign:"left",borderBottom:"1px solid #687485",padding:"7px 9px",whiteSpace:"nowrap"}}>{formatInline(h)}</th>)}</tr></thead><tbody>{rows.map((cells,k)=><tr key={k}>{headers.map((_,j)=><td key={j} style={{padding:"7px 9px",borderBottom:"1px solid #424e60",verticalAlign:"top"}}>{formatInline(cells[j]||"")}</td>)}</tr>)}</tbody></table></div>);
+   continue;
+  }
+  if(/^\s*\|/.test(line)&&line.includes("|")){
+   const cells=splitCells(line);if(cells.length>1){rendered.push(<div key={i} style={{display:"flex",gap:8,flexWrap:"wrap",borderBottom:"1px solid #424e60",padding:"5px 0"}}>{cells.map((c,j)=><span key={j} style={{flex:"1 1 90px"}}>{formatInline(c)}</span>)}</div>);continue}
+  }
   const heading=line.match(/^(#{1,6})\s+(.+)$/);
-  if(heading)return <div key={i} className="answer-heading"><strong>{formatInline(heading[2])}</strong></div>;
+  if(heading){rendered.push(<div key={i} className="answer-heading"><strong>{formatInline(heading[2])}</strong></div>);continue}
   const bullet=line.match(/^\s*[-*•]\s+(.+)$/);
-  if(bullet)return <div key={i} className="answer-list-item"><span aria-hidden="true">•</span><span>{formatInline(bullet[1])}</span></div>;
+  if(bullet){rendered.push(<div key={i} className="answer-list-item"><span aria-hidden="true">•</span><span>{formatInline(bullet[1])}</span></div>);continue}
   const number=line.match(/^\s*(\d+)[.)]\s+(.+)$/);
-  if(number)return <div key={i} className="answer-list-item answer-numbered"><span>{number[1]}.</span><span>{formatInline(number[2])}</span></div>;
-  if(!line.trim())return <div key={i} className="answer-paragraph-gap"/>;
-  return <div key={i}>{formatInline(line)}</div>;
- })}</div>;
+  if(number){rendered.push(<div key={i} className="answer-list-item answer-numbered"><span>{number[1]}.</span><span>{formatInline(number[2])}</span></div>);continue}
+  if(!line.trim()){rendered.push(<div key={i} className="answer-paragraph-gap"/>);continue}
+  rendered.push(<div key={i}>{formatInline(line)}</div>);
+ }
+ return <div className="formatted-answer">{rendered}</div>;
 }
 const logos:Record<string,string>={gpt:"openai.com",claude:"claude.ai",gemini:"gemini.google.com",grok:"x.ai",deepseek:"deepseek.com",llama:"meta.ai",mistral:"mistral.ai",qwen:"qwen.ai"};
 const descriptions:Record<string,string>={gpt:"OpenAI · General reasoning",claude:"Anthropic · Thoughtful analysis",gemini:"Google · Multimodal research",grok:"xAI · Alternative perspectives",deepseek:"DeepSeek · Reasoning",llama:"Meta · Open-weight models",mistral:"Mistral AI · Fast analysis",qwen:"Alibaba · Multilingual reasoning"};
