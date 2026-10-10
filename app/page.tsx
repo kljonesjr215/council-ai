@@ -45,6 +45,7 @@ export default function Home(){
  const [teamFeedback,setTeamFeedback]=useState("");
  const [teamBusy,setTeamBusy]=useState(false);
  const [teamHistory,setTeamHistory]=useState<string[]>([]);
+ const [teamContributions,setTeamContributions]=useState<{name:string;role:string;text:string;ok:boolean}[]>([]);
  const [focusedMemberId,setFocusedMemberId]=useState("gpt");const [typingMembers,setTypingMembers]=useState<string[]>([]);const [prompt,setPrompt]=useState("");const [followUp,setFollowUp]=useState("");const [challengeOpen,setChallengeOpen]=useState<string>();const [memberChallenges,setMemberChallenges]=useState<Record<string,string>>({});const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
  const [account,setAccount]=useState<{email:string;name:string;avatar?:string}|null>(null);
  const [accountLoading,setAccountLoading]=useState(true);
@@ -138,15 +139,17 @@ export default function Home(){
   try{
    const context=revise?[task,"PREVIOUS DELIVERABLE:",teamResult,"CHAIRPERSON FEEDBACK:",teamFeedback].join("\\n\\n"):task;
    const contributions:string[]=[];
+   setTeamContributions([]);
    for(const member of active){
     setStatus(member.label+" is working on the Council assignment...");
     const r=await streamMember(member,context+"\\n\\nYour role: "+(member.role||"Independent")+". Provide a useful contribution for the team.", "ask");
+    setTeamContributions(prev=>[...prev,{name:member.label,role:member.role||"Independent",text:r.text,ok:r.ok}]);
     if(r.ok)contributions.push(member.label+":\\n"+r.text);
    }
    if(!contributions.length)throw new Error("No Council members completed their contributions.");
    const lead=active.find(m=>m.id==="gpt")||active[0];
    setStatus("Combining the Council's work into one deliverable...");
-   const response=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({member:lead,mode:"conclusion",prompt:"You are preparing the Council's single coordinated deliverable for its Chairperson. Original assignment:\\n"+context+"\\n\\nTEAM CONTRIBUTIONS:\\n"+contributions.join("\\n\\n")+"\\n\\nCombine the strongest compatible ideas, resolve conflicts, identify any uncertainties, and deliver a clear actionable result. Do not claim consensus where members disagree."})});
+   const response=await fetch("/api/council/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({member:lead,mode:"conclusion",prompt:"You are preparing the Council's single coordinated deliverable for its Chairperson. Original assignment:\\n"+context+"\\n\\nTEAM CONTRIBUTIONS:\\n"+contributions.join("\\n\\n")+"\\n\\nCombine the strongest compatible ideas, resolve conflicts, identify any uncertainties, and deliver a clear actionable result. Do not claim consensus where members disagree. If the assignment asks for pricing, include a detailed itemized estimate with quantities, units, material cost, labor cost, subtotal, contingency, and total. Label prices as preliminary assumptions rather than verified quotes; clearly state location, scope and exclusions, and never invent supplier quotes."})});
    if(!response.ok)throw new Error("The Council could not prepare its combined deliverable ("+response.status+").");
    const reader=response.body?.getReader();if(!reader)throw new Error("No Council deliverable was returned.");
    const decoder=new TextDecoder();let result="";while(true){const chunk=await reader.read();if(chunk.done)break;result+=decoder.decode(chunk.value,{stream:true})}result+=decoder.decode();
@@ -211,9 +214,10 @@ export default function Home(){
    {workspaceMode==="individual"&&active.length!==1&&<div style={{fontSize:12,color:"#cbd3dd",marginTop:8}}>Select one AI member above for a solo chat.</div>}
    {workspaceMode==="council"&&active.length<2&&<div style={{fontSize:12,color:"#cbd3dd",marginTop:8}}>Select at least two AI members to work together.</div>}
    {workspaceMode==="council"&&teamBusy&&<div role="status" aria-live="polite" style={{marginTop:12,padding:"10px 12px",border:"1px solid #596271",borderRadius:10,fontSize:13,color:"#dbe4ef",display:"flex",alignItems:"center",gap:9}}><span style={{width:8,height:8,borderRadius:"50%",background:"#f3bd65",display:"inline-block",flexShrink:0}}/> {status}</div>}
+   {workspaceMode==="council"&&teamContributions.length>0&&<details style={{marginTop:12,border:"1px solid #596271",borderRadius:10,padding:"10px 12px"}} open={teamBusy}><summary style={{cursor:"pointer",fontWeight:600,fontSize:13}}>Council Discussion · {teamContributions.length} member contribution{teamContributions.length===1?"":"s"} (view who did what)</summary><div style={{marginTop:10,display:"grid",gap:10}}>{teamContributions.map((c,i)=><div key={i} style={{padding:12,border:"1px solid #596271",borderRadius:9}}><div style={{fontWeight:700,marginBottom:6}}>{c.name} · {c.role} · {c.ok?"Completed":"Incomplete"}</div><div className="answer" style={{maxHeight:300,overflowY:"auto"}}><FormattedAnswer text={c.text||"No response received."}/></div></div>)}</div></details>}
    {workspaceMode==="council"&&teamResult&&<div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #596271"}}><div style={{fontWeight:600,fontSize:14}}>Team Result · Version {teamHistory.length}</div><div className="answer" style={{maxHeight:400,overflowY:"auto",marginTop:10}}><FormattedAnswer text={teamResult}/></div><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button type="button" className="secondary" onClick={()=>setStatus("Result noted. Permanent project saving is not yet available.")}>Looks Good!</button><button type="button" className="secondary" onClick={()=>setTeamFeedback("Please offer a different approach to: ")}>Try Another Take</button></div><textarea aria-label="Feedback to Council" value={teamFeedback} onChange={e=>setTeamFeedback(e.target.value)} placeholder="What should the team change?" style={{width:"100%",minHeight:60,boxSizing:"border-box",marginTop:10}}/><button type="button" disabled={teamBusy||!teamFeedback.trim()} onClick={()=>assignTeam(true)}>Send Back to Council</button></div>}
   </section>
-  <div className="status">{status}</div>
+  {workspaceMode==="individual"&&<div className="status">{status}</div>}
   {workspaceMode==="individual"&&<section style={{marginTop:18}}>
    <div className="sectionHead"><div><b>Individual Perspectives</b><span>Explore what each AI contributed to the discussion</span></div><small>Tap to inspect a response</small></div>
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:10,marginBottom:14}}>
