@@ -11,17 +11,24 @@ const initial:Member[]=[
  {id:"grok",provider:"xai",label:"Grok",model:"grok-4-fast-non-reasoning",enabled:true,role:"Independent"},
  {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:false,role:"Independent"}
 ];
-function normalizeAnswer(text:string){return text.replace(/<br\\s*\\/?\\s*>/gi,"\\n").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").trim()}
+function normalizeAnswer(text:string){
+ return text.replace(/<br\s*\/?\s*>/gi,"\n").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").trim();
+}
 function FormattedAnswer({text}:{text:string}){
- const parts=normalizeAnswer(text).split(/(\\*\\*[^*\\n]+\\*\\*)/g);
+ const parts=normalizeAnswer(text).split(/(\*\*[^*\n]+\*\*)/g);
  return <>{parts.map((part,i)=>part.startsWith("**")&&part.endsWith("**")?<strong key={i}>{part.slice(2,-2)}</strong>:<span key={i}>{part}</span>)}</>;
 }
 function AnimatedAnswer({text}:{text:string}){
  const cleaned=normalizeAnswer(text);
  const [visible,setVisible]=useState("");
  useEffect(()=>{
-  setVisible("");let index=0;
-  const timer=window.setInterval(()=>{index=Math.min(cleaned.length,index+Math.max(1,Math.ceil((cleaned.length-index)/110)));setVisible(cleaned.slice(0,index));if(index>=cleaned.length)window.clearInterval(timer)},24);
+  setVisible("");
+  let index=0;
+  const timer=window.setInterval(()=>{
+   index=Math.min(cleaned.length,index+Math.max(1,Math.ceil((cleaned.length-index)/110)));
+   setVisible(cleaned.slice(0,index));
+   if(index>=cleaned.length)window.clearInterval(timer);
+  },24);
   return ()=>window.clearInterval(timer);
  },[cleaned]);
  return <span aria-label={cleaned}><FormattedAnswer text={visible}/><span className="typingCursor" aria-hidden="true">{visible.length<cleaned.length?"▍":""}</span></span>;
