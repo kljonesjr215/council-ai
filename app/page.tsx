@@ -1,5 +1,5 @@
 "use client";
-import {useMemo,useRef,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 type Mode="ask"|"challenge-member"|"challenge-council"|"final"|"conclusion";
 type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
@@ -9,6 +9,20 @@ const initial:Member[]=[
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
  {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:true,role:"Independent"}
 ];
+function AnimatedAnswer({text}:{text:string}){
+ const [visible,setVisible]=useState("");
+ useEffect(()=>{
+  setVisible("");
+  let index=0;
+  const timer=window.setInterval(()=>{
+   index=Math.min(text.length,index+Math.max(1,Math.ceil((text.length-index)/110)));
+   setVisible(text.slice(0,index));
+   if(index>=text.length)window.clearInterval(timer);
+  },24);
+  return ()=>window.clearInterval(timer);
+ },[text]);
+ return <span aria-label={text}>{visible}<span aria-hidden="true">{visible.length<text.length?"▍":""}</span></span>;
+}
 export default function Home(){
  const [prompt,setPrompt]=useState("");const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
  const active=useMemo(()=>members.filter(m=>m.enabled),[members]);
@@ -50,8 +64,8 @@ export default function Home(){
   <section className="roster"><div className="sectionHead"><div><b>Choose Your Council</b><span>{active.length} active member{active.length===1?"":"s"}</span></div><small>More providers can be added without rebuilding Council.</small></div><div className="memberGrid">{members.map(m=><button key={m.id} className={"memberCard "+(m.enabled?"selected":"")} onClick={()=>toggle(m.id)}><span className="memberCheck">{m.enabled?"✓":"+"}</span><b>{m.label}</b><small>Role</small><select value={m.role||"Independent"} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();setRole(m.id,e.target.value)}}><option>Independent</option><option>Strategist</option><option>Skeptic</option><option>Researcher</option><option>Financial Analyst</option><option>Creative</option><option>Devil's Advocate</option></select><em>{m.enabled?"Active":"Tap to add"}</em></button>)}</div></section>
   <section className="composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="What do you want the Council to think through?"/><input ref={fileRef} hidden multiple type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt" onChange={e=>setAttachments(Array.from(e.target.files||[]))}/><div className="media"><button onClick={()=>fileRef.current?.click()}>+ Photo / File</button><button onClick={()=>fileRef.current?.click()}>Voice</button><button onClick={()=>fileRef.current?.click()}>Video</button>{attachments.length>0&&<span className="attachmentCount">{attachments.length} selected</span>}</div><button className="primary" disabled={loading||active.length<1} onClick={()=>run("ask")}>{loading?"Thinking...":"Ask "+active.length+" Council Member"+(active.length===1?"":"s")}</button></section>
   <div className="status">{status}</div>
-  <section className="answers dynamic">{active.map(m=>{const r=responses.find(x=>x.member.id===m.id);return <article key={m.id}><div className="model"><b>{m.label}</b><span>{m.role||"Independent view"}</span></div><div className="answer">{r?(r.ok?r.text:friendlyError(r)):m.label+"'s position will appear here."}</div>{r&&!r.ok?<button disabled={loading} onClick={()=>retryMember(m)}>Retry {m.label}</button>:<button disabled={!r||loading} onClick={()=>run("challenge-member",m.id)}>Challenge {m.label}</button>}</article>})}</section>
-  <section className="actions"><button disabled={responses.length<2||loading||finalComplete} onClick={()=>run("challenge-council")}>What is the Council missing?</button><button className="final" disabled={responses.length<2||loading||finalComplete} onClick={()=>run("final")}>{finalComplete?"Final Round Complete":"Request Final Round"}</button></section>{finalComplete&&<section className="actions"><button className="final" disabled={loading||Boolean(conclusion)} onClick={runConclusion}>{conclusion?"Council Conclusion Complete":"Generate Council Conclusion"}</button></section>}{conclusion&&<section className="answers dynamic"><article><div className="model"><b>Council Conclusion</b><span>Prepared by {conclusion.member.label}</span></div><div className="answer">{conclusion.ok?conclusion.text:friendlyError(conclusion)}</div></article></section>}
+  <section className="answers dynamic">{active.map(m=>{const r=responses.find(x=>x.member.id===m.id);return <article key={m.id}><div className="model"><b>{m.label}</b><span>{m.role||"Independent view"}</span></div><div className="answer">{r?(r.ok?<AnimatedAnswer key={m.id+":"+r.text} text={r.text}/>:friendlyError(r)):m.label+"'s position will appear here."}</div>{r&&!r.ok?<button disabled={loading} onClick={()=>retryMember(m)}>Retry {m.label}</button>:<button disabled={!r||loading} onClick={()=>run("challenge-member",m.id)}>Challenge {m.label}</button>}</article>})}</section>
+  <section className="actions"><button disabled={responses.length<2||loading||finalComplete} onClick={()=>run("challenge-council")}>What is the Council missing?</button><button className="final" disabled={responses.length<2||loading||finalComplete} onClick={()=>run("final")}>{finalComplete?"Final Round Complete":"Request Final Round"}</button></section>{finalComplete&&<section className="actions"><button className="final" disabled={loading||Boolean(conclusion)} onClick={runConclusion}>{conclusion?"Council Conclusion Complete":"Generate Council Conclusion"}</button></section>}{conclusion&&<section className="answers dynamic"><article><div className="model"><b>Council Conclusion</b><span>Prepared by {conclusion.member.label}</span></div><div className="answer">{conclusion.ok?<AnimatedAnswer text={conclusion.text}/>:friendlyError(conclusion)}</div></article></section>}
   <nav><button>C<small>Council</small></button><button>P<small>Projects</small></button><button>+<small>Create</small></button><button>M<small>Memory</small></button></nav>
  </main>
 }
