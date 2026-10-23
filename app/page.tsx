@@ -11,19 +11,20 @@ const initial:Member[]=[
  {id:"grok",provider:"xai",label:"Grok",model:"grok-4-fast-non-reasoning",enabled:true,role:"Independent"},
  {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:false,role:"Independent"}
 ];
+function normalizeAnswer(text:string){return text.replace(/<br\\s*\\/?\\s*>/gi,"\\n").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").trim()}
+function FormattedAnswer({text}:{text:string}){
+ const parts=normalizeAnswer(text).split(/(\\*\\*[^*\\n]+\\*\\*)/g);
+ return <>{parts.map((part,i)=>part.startsWith("**")&&part.endsWith("**")?<strong key={i}>{part.slice(2,-2)}</strong>:<span key={i}>{part}</span>)}</>;
+}
 function AnimatedAnswer({text}:{text:string}){
+ const cleaned=normalizeAnswer(text);
  const [visible,setVisible]=useState("");
  useEffect(()=>{
-  setVisible("");
-  let index=0;
-  const timer=window.setInterval(()=>{
-   index=Math.min(text.length,index+Math.max(1,Math.ceil((text.length-index)/110)));
-   setVisible(text.slice(0,index));
-   if(index>=text.length)window.clearInterval(timer);
-  },24);
+  setVisible("");let index=0;
+  const timer=window.setInterval(()=>{index=Math.min(cleaned.length,index+Math.max(1,Math.ceil((cleaned.length-index)/110)));setVisible(cleaned.slice(0,index));if(index>=cleaned.length)window.clearInterval(timer)},24);
   return ()=>window.clearInterval(timer);
- },[text]);
- return <span aria-label={text}>{visible}<span className="typingCursor" aria-hidden="true">{visible.length<text.length?"▍":""}</span></span>;
+ },[cleaned]);
+ return <span aria-label={cleaned}><FormattedAnswer text={visible}/><span className="typingCursor" aria-hidden="true">{visible.length<cleaned.length?"▍":""}</span></span>;
 }
 export default function Home(){
  const [prompt,setPrompt]=useState("");const [debate,setDebate]=useState<DebateEntry[]>([]);const debateId=useRef(0);const [members,setMembers]=useState(initial);const [responses,setResponses]=useState<Response[]>([]);const [finalComplete,setFinalComplete]=useState(false);const [conclusion,setConclusion]=useState<Response>();const [loading,setLoading]=useState(false);const [status,setStatus]=useState("Council ready");const [conversationId,setConversationId]=useState<string>();const [attachments,setAttachments]=useState<File[]>([]);const fileRef=useRef<HTMLInputElement>(null);
