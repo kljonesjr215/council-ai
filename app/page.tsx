@@ -7,7 +7,7 @@ function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("h
 const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-4.1-mini",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
- {id:"gemini",provider:"google",label:"Gemini",model:"gemini-2.5-flash",enabled:true,role:"Independent"}
+ {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:true,role:"Independent"}
 ];
 function AnimatedAnswer({text}:{text:string}){
  const [visible,setVisible]=useState("");
