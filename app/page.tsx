@@ -1,13 +1,14 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 type Mode="ask"|"challenge-member"|"challenge-council"|"final"|"conclusion";
-type Member={id:string;provider:"openai"|"anthropic"|"google"|"custom";label:string;model:string;enabled:boolean;role?:string};
+type Member={id:string;provider:"openai"|"anthropic"|"google"|"xai"|"custom";label:string;model:string;enabled:boolean;role?:string};
 type Response={member:Member;text:string;ok:boolean};
 function friendlyError(r:Response){const t=r.text.toLowerCase();if(t.includes("high demand")||t.includes("try again later")||t.includes("overloaded")||t.includes("503"))return r.member.label+" provider response: "+r.text+" (You can retry this member.)";if(t.includes("429")||t.includes("quota")||t.includes("credits"))return r.member.label+" is temporarily unavailable because its provider limit was reached.";return r.text}
 const initial:Member[]=[
  {id:"gpt",provider:"openai",label:"GPT",model:"gpt-4.1-mini",enabled:true,role:"Independent"},
  {id:"claude",provider:"anthropic",label:"Claude",model:"claude-sonnet-5-5",enabled:true,role:"Independent"},
- {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:true,role:"Independent"}
+ {id:"grok",provider:"xai",label:"Grok",model:"grok-4-fast-non-reasoning",enabled:true,role:"Independent"},
+ {id:"gemini",provider:"google",label:"Gemini",model:"gemini-3.8-flash",enabled:false,role:"Independent"}
 ];
 function AnimatedAnswer({text}:{text:string}){
  const [visible,setVisible]=useState("");
