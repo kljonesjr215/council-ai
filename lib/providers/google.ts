@@ -5,13 +5,13 @@ export const googleProvider:CouncilProvider={
  isConfigured:()=>Boolean(process.env.GOOGLE_API_KEY),
  async ask({prompt,mode,model,role}){
   const apiKey=process.env.GOOGLE_API_KEY;if(!apiKey)throw new Error("google is not configured");
-  const selectedModel=model&&model!=="gemini"?model:(process.env.GOOGLE_MODEL||"gemini-3.8-flash");
+  const selectedModel=model&&model!=="gemini"?model:(process.env.GOOGLE_MODEL||"gemini-2.5-flash");
   async function call(modelName:string){return await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(modelName)+":generateContent",{
    method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":apiKey as string},
    body:JSON.stringify({system_instruction:{parts:[{text:councilInstruction(mode)+(role?("\nYour Council role: "+role):"")}]},contents:[{role:"user",parts:[{text:prompt}]}]})
   })}
   let usedModel=selectedModel;let r=await call(usedModel);let data=await r.json();
-  if(!r.ok&&(/high demand|try again later|overloaded/i.test(data?.error?.message||""))&&selectedModel!=="gemini-3.5-flash-lite"){usedModel="gemini-3.5-flash-lite";r=await call(usedModel);data=await r.json()}
+  if(!r.ok&&(r.status===429||r.status===503||/high demand|try again later|overloaded|not found|not supported/i.test(data?.error?.message||""))&&selectedModel!=="gemini-2.5-flash-lite"){usedModel="gemini-2.5-flash-lite";r=await call(usedModel);data=await r.json()}
   if(!r.ok)throw new Error(data?.error?.message||"Gemini request failed");
   const text=(data?.candidates?.[0]?.content?.parts||[]).map((p:{text?:string})=>p.text||"").join("\n");
   const u=data?.usageMetadata;
