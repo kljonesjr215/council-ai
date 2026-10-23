@@ -3,7 +3,7 @@ import {z} from "zod";
 import {deliberate} from "@/lib/council";
 import {createClient} from "@/lib/supabase/server";
 
-const member=z.object({id:z.string(),provider:z.enum(["openai","anthropic","google","custom"]),label:z.string(),model:z.string().min(1),enabled:z.boolean(),role:z.string().optional()});
+const member=z.object({id:z.string(),provider:z.enum(["openai","anthropic","google","xai","custom"]),label:z.string(),model:z.string().min(1),enabled:z.boolean(),role:z.string().optional()});
 const schema=z.object({prompt:z.string().min(1).max(20000),mode:z.enum(["ask","challenge-member","challenge-council","final","conclusion"]).default("ask"),targetMemberId:z.string().optional(),conversationId:z.string().uuid().optional(),members:z.array(member).min(1).max(8)});
 export async function POST(req:Request){
  try{
