@@ -10,10 +10,22 @@ export const googleProvider:CouncilProvider={
    method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json","x-goog-api-key":apiKey as string},
    body:JSON.stringify({system_instruction:{parts:[{text:councilInstruction(mode)+(role?("\nYour Council role: "+role):"")}]},contents:[{role:"user",parts:[{text:prompt}]}]})
   })}finally{clearTimeout(timer)}}
-  let usedModel=selectedModel;let r:Response;let data:any;
-  try{r=await call(usedModel);data=await r.json()}catch(e){if(selectedModel==="gemini-3.8-flash")throw new Error("Gemini did not respond within 11 seconds. Check Google API access and try again.");usedModel="gemini-3.8-flash";try{r=await call(usedModel);data=await r.json()}catch{throw new Error("Both Gemini models timed out. Check Google API key, billing, and API access.")}}
-  if(!r.ok&&(r.status===429||r.status===503||/high demand|try again later|overloaded|not found|not supported/i.test(data?.error?.message||""))&&selectedModel!=="gemini-3.8-flash"){usedModel="gemini-3.8-flash";r=await call(usedModel);data=await r.json()}
-  if(!r.ok)throw new Error("Gemini API "+r.status+": "+(data?.error?.message||"Request failed"));
+  // Retry temporary Google capacity errors without changing the selected model.
+  // The previous fallback accidentally retried the exact same model as a "fallback".
+  let r:Response|undefined;let data:any;
+  for(let attempt=0;attempt<3;attempt++){
+   try{r=await call(selectedModel);data=await r.json()}
+   catch(e){
+    if(attempt===2)throw new Error("Gemini request timed out after three attempts. Please retry shortly.");
+    await new Promise(resolve=>setTimeout(resolve,450*(attempt+1)));
+    continue;
+   }
+   if(r.ok)break;
+   const temporary=r.status===503||r.status===429||/high demand|overloaded|try again later/i.test(data?.error?.message||"");
+   if(!temporary||attempt===2)break;
+   await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
+  }
+  if(!r||!r.ok)throw new Error("Gemini API "+(r?.status||"error")+": "+(data?.error?.message||"Request failed"));
   const text=(data?.candidates?.[0]?.content?.parts||[]).map((p:{text?:string})=>p.text||"").join("\n");
   if(!text.trim())throw new Error("Gemini returned no text. Please retry.");
   const u=data?.usageMetadata;
