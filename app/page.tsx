@@ -19,7 +19,7 @@ function extractSvg(text:string){
  const match=text.match(/<svg\b[\s\S]*?<\/svg>/i);
  if(!match)return null;
  const svg=match[0];
- if(/<\s*(script|foreignObject|iframe|object|embed|image|use|animate|set)\b|\bon[a-z]+\s*=|javascript:|https?:|data:/i.test(svg))return null;
+ if(/<\s*(script|foreignObject|iframe|object|embed|image|use|animate|set)\b|\bon[a-z]+\s*=|javascript:|\b(?:href|src)\s*=|url\s*\(/i.test(svg))return null;
  if(!/xmlns=/.test(svg))return svg.replace(/<svg\b/i,'<svg xmlns="http://www.w3.org/2000/svg"');
  return svg;
 }
