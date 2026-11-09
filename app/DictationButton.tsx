@@ -34,8 +34,10 @@ export default function DictationButton({onTranscript}:{onTranscript:(text:strin
     media.getTracks().forEach(t=>t.stop());stream.current=null;recorder.current=null;
     try{
      const blob=new Blob(chunks.current,{type:r.mimeType||"audio/webm"});
-     const form=new FormData();form.append("audio",blob,"dictation.webm");
+     const form=new FormData();form.append("audio",blob,r.mimeType.includes("mp4")?"dictation.mp4":r.mimeType.includes("ogg")?"dictation.ogg":"dictation.webm");
      const response=await fetch("/api/transcribe",{method:"POST",body:form});
+     const contentType=response.headers.get("content-type")||"";
+     if(!contentType.includes("application/json"))throw new Error("Transcription service is unavailable ("+response.status+").");
      const data=await response.json();
      if(!response.ok)throw new Error(data.error||"Transcription failed");
      if(data.text)onTranscript(data.text);
