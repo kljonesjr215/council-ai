@@ -46,7 +46,7 @@ function GeneratedImage({src}:{src:string}){
  return <section className="imageResult"><strong>Created by Council</strong><button className="generatedImageButton" type="button" onClick={()=>{setZoom(1);setOpen(true)}}><img src={src} alt="Council generated image"/><span>Click to expand</span></button><button onClick={download}>Download image</button>
  {open&&<div className="imageLightbox" role="dialog" aria-modal="true" aria-label="Expanded generated image"><div className="imageLightboxToolbar"><button onClick={()=>setZoom(z=>Math.max(.5,z-.25))}>− Zoom</button><button onClick={()=>setZoom(1)}>Reset</button><button onClick={()=>setZoom(z=>Math.min(4,z+.25))}>+ Zoom</button><button onClick={download}>Download</button><button onClick={()=>setOpen(false)}>Close ✕</button></div><div className="imageLightboxViewport"><img src={src} alt="Expanded Council generated image" style={{transform:"scale("+zoom+")"}}/></div></div>}</section>;
 }
-function isImageRequest(text:string){return /\\b(create|generate|make|draw|design|render|illustrate)\\b[\\s\\S]{0,100}\\b(image|picture|photo|photograph|logo|poster|artwork|illustration|graphic)\\b|\\b(image|picture|photo|logo|poster)\\b[\\s\\S]{0,50}\\b(create|generate|make|draw|design)\\b/i.test(text)}
+function isImageRequest(text:string){return /\b(create|generate|make|draw|design|render|illustrate)\b[\s\S]{0,100}\b(image|picture|photo|photograph|logo|poster|artwork|illustration|graphic)\b|\b(image|picture|photo|logo|poster)\b[\s\S]{0,50}\b(create|generate|make|draw|design)\b/i.test(text)}
 function AnimatedAnswer({text}:{text:string}){
  const cleaned=normalizeAnswer(text);
  const [visible,setVisible]=useState("");
