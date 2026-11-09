@@ -10,7 +10,6 @@ export default function MediaWorkspace({files,onRemove}:Props){
  return <section className="mediaWorkspace" aria-label="Attached media" style={{padding:"12px 16px"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
    <div><strong>✓ {labels.join(", ")} recognized.</strong><div style={{marginTop:4}}>What would you like Council to do next?</div><small>Original files remain unchanged. Type your instructions in the question box.</small></div>
-   <button type="button" onClick={()=>files.forEach((_file,i)=>{ /* handled below */ })} style={{display:"none"}} aria-hidden="true">Remove</button>
   </div>
   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>{files.map((file,i)=><button key={i} type="button" title={file.name} onClick={()=>onRemove(i)} style={{fontSize:12,padding:"5px 9px",border:"1px solid #53627b",borderRadius:8,background:"transparent",color:"inherit"}}>Remove {files.length>1?`file ${i+1}`:"attachment"} ×</button>)}</div>
  </section>;
