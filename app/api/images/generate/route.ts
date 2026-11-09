@@ -13,9 +13,9 @@ export async function POST(req:Request){
   const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
   if(!prompt||prompt.length>MAX_PROMPT)return NextResponse.json({error:"Enter an image request under 3000 characters."},{status:400});
   const client=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
-  const result=await client.images.generate({model:"gpt-image-1",prompt,n:1,size:"1024x1024"});
+  const result=await client.images.generate({model:process.env.OPENAI_IMAGE_MODEL||"gpt-image-2",prompt,n:1,size:"1024x1024"});
   const base64=result.data?.[0]?.b64_json;
   if(!base64)return NextResponse.json({error:"Image provider did not return an image."},{status:502});
   return NextResponse.json({image:"data:image/png;base64,"+base64});
- }catch(e){console.error("Council image generation failed",e);return NextResponse.json({error:e instanceof Error?e.message:"Image generation failed"},{status:500})}
+ }catch(e){console.error("Council image generation failed",e);const error=e as {status?:number;message?:string};if(error.status===400||error.status===404){return NextResponse.json({error:"The image model is unavailable to this API key. Check your OpenAI project model access and OPENAI_IMAGE_MODEL configuration."},{status:502})}return NextResponse.json({error:e instanceof Error?e.message:"Image generation failed"},{status:500})}
 }
