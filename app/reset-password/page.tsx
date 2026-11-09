@@ -1,0 +1,9 @@
+"use client";
+import {FormEvent,useEffect,useState} from "react";
+import {createClient} from "@/lib/supabase/client";
+export default function ResetPassword(){
+ const [password,setPassword]=useState("");const [confirm,setConfirm]=useState("");const [message,setMessage]=useState("Open the password reset link from your email.");const [ready,setReady]=useState(false);
+ useEffect(()=>{const supabase=createClient();const {data:{subscription}}=supabase.auth.onAuthStateChange((event)=>{if(event==="PASSWORD_RECOVERY"||event==="SIGNED_IN")setReady(true)});void supabase.auth.getSession().then(({data})=>{if(data.session)setReady(true)});return ()=>subscription.unsubscribe()},[]);
+ async function submit(e:FormEvent){e.preventDefault();if(password.length<8){setMessage("Use at least 8 characters.");return}if(password!==confirm){setMessage("Passwords do not match.");return}const supabase=createClient();const {error}=await supabase.auth.updateUser({password});if(error){setMessage(error.message);return}setMessage("Password updated! You can now return to Council.");setPassword("");setConfirm("")}
+ return <main className="authShell"><section className="authCard"><span className="eyebrow">COUNCIL.AI</span><h1>Reset your password</h1><p>Use the secure link sent to your email to choose a new password.</p><form onSubmit={submit}><input type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required/><input type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirm} onChange={e=>setConfirm(e.target.value)} required/><button className="primary" disabled={!ready}>Update password</button></form><small role="status">{message}</small><a href="/login">Return to sign in</a></section></main>
+}
