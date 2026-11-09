@@ -16,15 +16,15 @@ function normalizeAnswer(text:string){
  return text.replace(/<br\s*\/?\s*>/gi,"\n").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").trim();
 }
 function extractSvg(text:string){
- const match=text.match(/<svg\\b[\\s\\S]*?<\\/svg>/i);
+ const match=text.match(/<svg\b[\s\S]*?<\/svg>/i);
  if(!match)return null;
  const svg=match[0];
- if(/<\\s*(script|foreignObject|iframe|object|embed|image|use|animate|set)\\b|\\bon[a-z]+\\s*=|javascript:|https?:|data:/i.test(svg))return null;
- if(!/xmlns=/.test(svg))return svg.replace(/<svg\\b/i,'<svg xmlns="http://www.w3.org/2000/svg"');
+ if(/<\s*(script|foreignObject|iframe|object|embed|image|use|animate|set)\b|\bon[a-z]+\s*=|javascript:|https?:|data:/i.test(svg))return null;
+ if(!/xmlns=/.test(svg))return svg.replace(/<svg\b/i,'<svg xmlns="http://www.w3.org/2000/svg"');
  return svg;
 }
 function FormattedAnswer({text}:{text:string}){
- const parts=normalizeAnswer(text).split(/(\\*\\*[^*\\n]+\\*\\*)/g);
+ const parts=normalizeAnswer(text).split(/(\*\*[^*\n]+\*\*)/g);
  return <>{parts.map((part,i)=>part.startsWith("**")&&part.endsWith("**")?<strong key={i}>{part.slice(2,-2)}</strong>:<span key={i}>{part}</span>)}</>;
 }
 function VisualAnswer({text}:{text:string}){
@@ -32,7 +32,7 @@ function VisualAnswer({text}:{text:string}){
  const [zoom,setZoom]=useState(1);
  const svg=extractSvg(text);
  const src=svg?"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg):null;
- const remaining=svg?text.replace(/<svg\\b[\\s\\S]*?<\\/svg>/i,"").trim():text;
+ const remaining=svg?text.replace(/<svg\b[\s\S]*?<\/svg>/i,"").trim():text;
  function save(){if(!svg)return;const blob=new Blob([svg],{type:"image/svg+xml"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="council-design.svg";a.click();window.setTimeout(()=>URL.revokeObjectURL(url),2000)}
  return <>{src?<><button className="generatedImageButton" type="button" onClick={()=>{setZoom(1);setExpanded(true)}} aria-label="Expand generated design"><img src={src} alt="AI-generated SVG design. Click to expand."/><span>Click to expand design</span></button>{remaining&&<FormattedAnswer text={remaining}/>}</>:<AnimatedAnswer text={text}/>}
  {expanded&&src&&<div className="imageLightbox" role="dialog" aria-modal="true" aria-label="Expanded Council image" onClick={()=>setExpanded(false)}>
