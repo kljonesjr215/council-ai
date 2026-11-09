@@ -1,11 +1,8 @@
 import {NextResponse} from "next/server";
 import OpenAI from "openai";
-import {createClient} from "@/lib/supabase/server";
 export const runtime="nodejs";
 export async function POST(req:Request){
  try{
-  const s=await createClient();const {data:{user}}=await s.auth.getUser();
-  if(!user)return NextResponse.json({error:"Sign in to analyze photos."},{status:401});
   if(!process.env.OPENAI_API_KEY)return NextResponse.json({error:"Vision provider is not configured."},{status:503});
   const body=await req.json();const images=body.images;
   if(!Array.isArray(images)||images.length<1||images.length>4||images.some((x:unknown)=>typeof x!=="string"||!/^data:image\/(jpeg|png|webp);base64,/.test(x as string)||(x as string).length>4_000_000))return NextResponse.json({error:"Select up to four JPG, PNG or WebP photos."},{status:400});
