@@ -49,7 +49,7 @@ export default function MediaWorkspace({files,onRemove}:Props){
  <label>Warmth (sepia): {sepia}% <input type="range" min="0" max="100" value={sepia} onChange={e=>setSepia(Number(e.target.value))}/></label>
  <label>Hue: {hue}° <input type="range" min="-180" max="180" value={hue} onChange={e=>setHue(Number(e.target.value))}/></label>
  <button type="button" onClick={()=>{setBrightness(100);setContrast(100);setSaturation(100);setGrayscale(0);setSepia(0);setHue(0)}}>Reset adjustments</button>
- <button type="button" disabled={busy} onClick={exportEdited}>{busy?"Exporting...":"Save edited photo"}</button></>
+ <button type="button" disabled={busy} onClick={exportEdited}>{busy?"Exporting...":"Save edited photo"}</button></>}
   </div>}
  </section>;
 }
