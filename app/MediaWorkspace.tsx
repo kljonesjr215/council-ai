@@ -1,14 +1,12 @@
 "use client";
 import {useEffect,useState} from "react";
-type Props={files:File[];onRemove:(index:number)=>void};
-export default function MediaWorkspace({files,onRemove}:Props){
+type Props={files:File[];onRemove:(index:number)=>void;selected:File[];onSelectionChange:(files:File[])=>void};
+export default function MediaWorkspace({files,onRemove,selected,onSelectionChange}:Props){
  const [urls,setUrls]=useState<string[]>([]);
- const [selected,setSelected]=useState<File[]>([]);
  useEffect(()=>{const next=files.map(file=>file.type.startsWith("image/")?URL.createObjectURL(file):"");setUrls(next);return ()=>next.forEach(url=>{if(url)URL.revokeObjectURL(url)})},[files]);
- useEffect(()=>{setSelected(old=>old.filter(file=>files.includes(file)))},[files]);
  if(!files.length)return null;
  const images=files.filter(f=>f.type.startsWith("image/"));
- function toggle(file:File){setSelected(old=>old.includes(file)?old.filter(f=>f!==file):[...old,file])}
+ function toggle(file:File){onSelectionChange(selected.includes(file)?selected.filter(f=>f!==file):[...selected,file])}
  return <section className="mediaWorkspace" aria-label="Uploaded media" style={{padding:"12px 16px"}}>
   <strong>{images.length?`${images.length} photo${images.length===1?"":"s"} uploaded`:`${files.length} file${files.length===1?"":"s"} uploaded`}</strong>
   <div style={{marginTop:5}}>Select the photo or photos you want to reference.</div>
