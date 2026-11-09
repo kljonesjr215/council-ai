@@ -7,8 +7,11 @@ export async function POST(request:Request){
   const data=await request.formData();
   const audio=data.get("audio");
   if(!(audio instanceof File)||!audio.type.startsWith("audio/"))return NextResponse.json({error:"An audio recording is required."},{status:400});
+  if(audio.size===0)return NextResponse.json({error:"Recording is empty."},{status:400});
   if(audio.size>10*1024*1024)return NextResponse.json({error:"Recording exceeds the 10 MB limit."},{status:413});
-  const form=new FormData();form.append("file",audio,"dictation.webm");form.append("model","whisper-1");form.append("language","en");
+  const type=audio.type.toLowerCase();
+  const ext=type.includes("mp4")||type.includes("m4a")?"mp4":type.includes("ogg")?"ogg":type.includes("mpeg")?"mp3":type.includes("wav")?"wav":"webm";
+  const form=new FormData();form.append("file",audio,"dictation."+ext);form.append("model","whisper-1");form.append("language","en");
   const result=await fetch("https://api.openai.com/v1/audio/transcriptions",{method:"POST",headers:{Authorization:"Bearer "+key},body:form,signal:AbortSignal.timeout(45000)});
   const json=await result.json().catch(()=>({}));
   if(!result.ok)return NextResponse.json({error:"Voice transcription failed. Please try again."},{status:502});
